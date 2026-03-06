@@ -1,5 +1,5 @@
 import api from "./api";
-import type { AnalyticsSummary, ATSTrend, SkillGrowth } from "@/types";
+import type { AnalyticsSummary, ATSTrend, SkillGrowth, CareerProgress } from "@/types";
 
 export const analyticsService = {
   async getSummary(): Promise<AnalyticsSummary> {
@@ -14,6 +14,11 @@ export const analyticsService = {
 
   async getSkillGrowth(): Promise<SkillGrowth[]> {
     const res = await api.get("/analytics/skill-growth");
+    return res.data;
+  },
+
+  async getCareerProgress(): Promise<CareerProgress[]> {
+    const res = await api.get("/analytics/career-progress");
     return res.data;
   },
 };

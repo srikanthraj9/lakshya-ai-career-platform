@@ -13,12 +13,17 @@ import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import ResumeUploadPage from "./pages/ResumeUploadPage";
 import ResumeDetailPage from "./pages/ResumeDetailPage";
+import ResumeRewritePage from "./pages/ResumeRewritePage";
 import RoleAlignmentPage from "./pages/RoleAlignmentPage";
+import RoadmapPage from "./pages/RoadmapPage";
 import InterviewSetupPage from "./pages/InterviewSetupPage";
 import InterviewSessionPage from "./pages/InterviewSessionPage";
 import InterviewReportPage from "./pages/InterviewReportPage";
+import VoiceInterviewPage from "./pages/VoiceInterviewPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import JobsPage from "./pages/JobsPage";
+import LiveJobsPage from "./pages/LiveJobsPage";
+import CopilotPage from "./pages/CopilotPage";
 import ProfilePage from "./pages/ProfilePage";
 import NotFound from "./pages/NotFound";
 
@@ -42,12 +47,17 @@ const App = () => (
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/resume/upload" element={<ResumeUploadPage />} />
               <Route path="/resume/:id" element={<ResumeDetailPage />} />
+              <Route path="/resume/rewrite" element={<ResumeRewritePage />} />
               <Route path="/roles/analyze" element={<RoleAlignmentPage />} />
+              <Route path="/roadmap" element={<RoadmapPage />} />
               <Route path="/interview/setup" element={<InterviewSetupPage />} />
               <Route path="/interview/session" element={<InterviewSessionPage />} />
               <Route path="/interview/report/:sessionId" element={<InterviewReportPage />} />
+              <Route path="/interview/voice-ai" element={<VoiceInterviewPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/jobs" element={<JobsPage />} />
+              <Route path="/jobs/live" element={<LiveJobsPage />} />
+              <Route path="/copilot" element={<CopilotPage />} />
               <Route path="/profile" element={<ProfilePage />} />
             </Route>
 
