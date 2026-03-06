@@ -78,3 +78,52 @@ export interface JobRecommendation {
   match_percentage: number;
   required_skills: string[];
 }
+
+// ─── New AI Feature Types ───
+
+export interface CopilotMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
+
+export interface CopilotResponse {
+  reply: string;
+}
+
+export interface RoadmapStage {
+  stage: string;
+  skills: string[];
+}
+
+export interface RoadmapResponse {
+  roadmap: RoadmapStage[];
+}
+
+export interface ResumeRewriteResponse {
+  rewritten_resume: string;
+}
+
+export interface VoiceAnswerResponse {
+  transcript: string;
+  scores: {
+    technical: number;
+    communication: number;
+    confidence: number;
+  };
+  feedback: string;
+}
+
+export interface LiveJob {
+  title: string;
+  company: string;
+  location: string;
+  skills: string[];
+  match_percent: number;
+}
+
+export interface CareerProgress {
+  week: string;
+  score: number;
+}
