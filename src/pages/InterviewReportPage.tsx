@@ -5,6 +5,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { Award, MessageSquare, Shield, CheckCircle, XCircle } from "lucide-react";
+import { PageTransition } from "@/components/PageTransition";
+import { AnimatedCounter } from "@/components/AnimatedCounter";
 
 export default function InterviewReportPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -14,7 +16,7 @@ export default function InterviewReportPage() {
     enabled: !!sessionId,
   });
 
-  if (isLoading) return <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32" />)}</div>;
+  if (isLoading) return <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>;
   if (!report) return <p className="text-destructive">Report not found.</p>;
 
   const scores = [
@@ -24,41 +26,46 @@ export default function InterviewReportPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <h1 className="font-display text-3xl font-bold">Interview Report</h1>
+    <PageTransition>
+      <div className="mx-auto max-w-3xl space-y-8">
+        <div>
+          <h1 className="font-display text-3xl font-bold">Interview Report</h1>
+          <p className="text-muted-foreground">Your AI interview performance breakdown.</p>
+        </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        {scores.map((s, i) => (
-          <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="glass-card rounded-xl p-6 text-center">
-            <s.icon className={`mx-auto mb-2 h-8 w-8 ${s.color}`} />
-            <p className="text-3xl font-bold text-foreground">{s.value}</p>
-            <p className="text-sm text-muted-foreground">{s.label}</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {scores.map((s, i) => (
+            <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="glass-card glass-card-hover rounded-xl p-6 text-center">
+              <s.icon className={`mx-auto mb-2 h-8 w-8 ${s.color}`} />
+              <p className="text-3xl font-bold text-foreground"><AnimatedCounter value={s.value} /></p>
+              <p className="text-sm text-muted-foreground">{s.label}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="grid gap-6 sm:grid-cols-2">
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }} className="glass-card glass-card-hover rounded-2xl p-6">
+            <h3 className="mb-3 flex items-center gap-2 font-semibold"><CheckCircle className="h-5 w-5 text-chart-4" /> Strengths</h3>
+            <ul className="space-y-2">
+              {report.strengths.map((s, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-chart-4" />{s}
+                </li>
+              ))}
+            </ul>
           </motion.div>
-        ))}
-      </div>
-
-      <div className="grid gap-6 sm:grid-cols-2">
-        <div className="glass-card rounded-2xl p-6">
-          <h3 className="mb-3 flex items-center gap-2 font-semibold"><CheckCircle className="h-5 w-5 text-chart-4" /> Strengths</h3>
-          <ul className="space-y-2">
-            {report.strengths.map((s, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-chart-4" />{s}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="glass-card rounded-2xl p-6">
-          <h3 className="mb-3 flex items-center gap-2 font-semibold"><XCircle className="h-5 w-5 text-chart-5" /> Weaknesses</h3>
-          <ul className="space-y-2">
-            {report.weaknesses.map((w, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-chart-5" />{w}
-              </li>
-            ))}
-          </ul>
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }} className="glass-card glass-card-hover rounded-2xl p-6">
+            <h3 className="mb-3 flex items-center gap-2 font-semibold"><XCircle className="h-5 w-5 text-chart-5" /> Weaknesses</h3>
+            <ul className="space-y-2">
+              {report.weaknesses.map((w, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-chart-5" />{w}
+                </li>
+              ))}
+            </ul>
+          </motion.div>
         </div>
       </div>
-    </div>
+    </PageTransition>
   );
 }

@@ -5,7 +5,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 @layer base {
-  :root {
+  :root,
+  .dark {
     --background: 230 25% 7%;
     --foreground: 220 20% 95%;
 
@@ -55,6 +56,56 @@
     --chart-3: 192 91% 55%;
     --chart-4: 142 71% 45%;
     --chart-5: 38 92% 50%;
+  }
+
+  .light {
+    --background: 0 0% 98%;
+    --foreground: 230 25% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 230 25% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 25% 12%;
+
+    --primary: 262 83% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 230 20% 93%;
+    --secondary-foreground: 230 20% 20%;
+
+    --muted: 230 15% 94%;
+    --muted-foreground: 230 10% 45%;
+
+    --accent: 217 91% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 230 15% 88%;
+    --input: 230 15% 88%;
+    --ring: 262 83% 55%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(262 83% 55%), hsl(217 91% 55%));
+    --gradient-accent: linear-gradient(135deg, hsl(217 91% 55%), hsl(192 91% 50%));
+    --glass-bg: hsla(0, 0%, 100%, 0.7);
+    --glass-border: hsla(230, 20%, 12%, 0.08);
+
+    --sidebar-background: 0 0% 99%;
+    --sidebar-foreground: 230 20% 35%;
+    --sidebar-primary: 262 83% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 230 20% 95%;
+    --sidebar-accent-foreground: 230 25% 12%;
+    --sidebar-border: 230 15% 90%;
+    --sidebar-ring: 262 83% 55%;
+
+    --chart-1: 262 83% 55%;
+    --chart-2: 217 91% 55%;
+    --chart-3: 192 91% 50%;
+    --chart-4: 142 71% 40%;
+    --chart-5: 38 92% 45%;
   }
 }
 

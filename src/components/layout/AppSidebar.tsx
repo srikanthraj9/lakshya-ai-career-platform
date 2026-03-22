@@ -6,6 +6,8 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const navItems = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -30,7 +32,7 @@ export function AppSidebar() {
   return (
     <aside className={cn("flex flex-col border-r border-border bg-sidebar transition-all duration-300", collapsed ? "w-16" : "w-64")}>
       <div className="flex h-16 items-center gap-2 border-b border-border px-4">
-        <button onClick={() => setCollapsed(!collapsed)} className="text-muted-foreground hover:text-foreground">
+        <button onClick={() => setCollapsed(!collapsed)} className="text-muted-foreground hover:text-foreground transition-colors">
           <Menu className="h-5 w-5" />
         </button>
         {!collapsed && (
@@ -38,6 +40,12 @@ export function AppSidebar() {
             <Compass className="h-6 w-6 text-primary" />
             <span className="font-display text-lg font-bold gradient-text">LakshyaAI</span>
           </Link>
+        )}
+        {!collapsed && (
+          <div className="ml-auto flex items-center gap-1">
+            <NotificationBell />
+            <ThemeToggle />
+          </div>
         )}
       </div>
 
@@ -59,6 +67,12 @@ export function AppSidebar() {
       </nav>
 
       <div className="border-t border-border p-3">
+        {collapsed && (
+          <div className="mb-2 flex flex-col items-center gap-2">
+            <NotificationBell />
+            <ThemeToggle />
+          </div>
+        )}
         <button onClick={logout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-sidebar-accent hover:text-destructive transition-colors">
           <LogOut className="h-5 w-5 shrink-0" />
           {!collapsed && <span>Logout</span>}

@@ -5,6 +5,7 @@ import {
   FileSearch, Target, MessageSquare, TrendingUp, Briefcase, BarChart3,
   Compass, ArrowRight, Sparkles
 } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const features = [
   { icon: FileSearch, title: "AI Resume Analysis", desc: "Get ATS scoring, skill detection and actionable feedback powered by AI." },
@@ -27,7 +28,7 @@ const item = {
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background transition-colors duration-300">
       {/* Navbar */}
       <nav className="fixed top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between">
@@ -36,6 +37,7 @@ export default function LandingPage() {
             <span className="font-display text-xl font-bold gradient-text">LakshyaAI</span>
           </Link>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Button variant="ghost" asChild><Link to="/login">Login</Link></Button>
             <Button variant="gradient" asChild><Link to="/register">Get Started</Link></Button>
           </div>
@@ -44,7 +46,6 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="relative flex min-h-screen items-center justify-center overflow-hidden pt-16">
-        {/* Background effects */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-1/2 left-1/2 h-[800px] w-[800px] -translate-x-1/2 rounded-full bg-primary/10 blur-[120px]" />
           <div className="absolute bottom-0 right-0 h-[600px] w-[600px] rounded-full bg-accent/8 blur-[100px]" />

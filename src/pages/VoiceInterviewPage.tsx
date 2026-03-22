@@ -6,6 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { Mic, Square, Loader2, Award, MessageSquare, Shield } from "lucide-react";
 import { toast } from "sonner";
+import { PageTransition } from "@/components/PageTransition";
+import { AnimatedCounter } from "@/components/AnimatedCounter";
 import type { VoiceAnswerResponse } from "@/types";
 
 export default function VoiceInterviewPage() {
@@ -51,64 +53,70 @@ export default function VoiceInterviewPage() {
   ] : [];
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <div>
-        <h1 className="font-display text-3xl font-bold">Voice Interview AI</h1>
-        <p className="text-muted-foreground">Record your answer and get instant AI evaluation.</p>
-      </div>
+    <PageTransition>
+      <div className="mx-auto max-w-3xl space-y-8">
+        <div>
+          <h1 className="font-display text-3xl font-bold">Voice Interview AI</h1>
+          <p className="text-muted-foreground">Record your answer and get instant AI evaluation.</p>
+        </div>
 
-      <div className="glass-card flex flex-col items-center gap-6 rounded-2xl p-10">
-        {recording && (
-          <motion.div initial={{ scale: 0.8 }} animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="flex h-28 w-28 items-center justify-center rounded-full bg-destructive/20">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-destructive/30">
-              <Mic className="h-10 w-10 text-destructive" />
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card glass-card-hover flex flex-col items-center gap-6 rounded-2xl p-10"
+        >
+          {recording && (
+            <motion.div initial={{ scale: 0.8 }} animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="flex h-28 w-28 items-center justify-center rounded-full bg-destructive/20">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-destructive/30">
+                <Mic className="h-10 w-10 text-destructive" />
+              </div>
+            </motion.div>
+          )}
+          {!recording && !mutation.isPending && (
+            <div className="flex h-28 w-28 items-center justify-center rounded-full border-2 border-dashed border-border transition-colors hover:border-primary/30">
+              <Mic className="h-10 w-10 text-muted-foreground" />
             </div>
+          )}
+          {mutation.isPending && <Loader2 className="h-12 w-12 animate-spin text-primary" />}
+
+          <p className="text-sm text-muted-foreground">{recording ? "Recording... Speak your answer" : mutation.isPending ? "Processing your answer..." : "Click to start recording"}</p>
+
+          {!recording ? (
+            <Button variant="gradient" size="lg" onClick={startRecording} disabled={mutation.isPending}>
+              <Mic className="mr-2 h-4 w-4" /> Start Recording
+            </Button>
+          ) : (
+            <Button variant="destructive" size="lg" onClick={stopRecording}>
+              <Square className="mr-2 h-4 w-4" /> Stop Recording
+            </Button>
+          )}
+        </motion.div>
+
+        {mutation.isPending && <Skeleton className="h-48 w-full rounded-2xl" />}
+
+        {result && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-3">
+              {scoreCards.map((s, i) => (
+                <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="glass-card glass-card-hover rounded-xl p-6 text-center">
+                  <s.icon className={`mx-auto mb-2 h-6 w-6 ${s.color}`} />
+                  <p className="text-sm text-muted-foreground">{s.label}</p>
+                  <p className="mt-1 text-3xl font-bold text-foreground"><AnimatedCounter value={s.value} /></p>
+                </motion.div>
+              ))}
+            </div>
+
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card glass-card-hover rounded-2xl p-6 space-y-4">
+              <h3 className="font-display text-lg font-semibold">Transcript</h3>
+              <p className="text-sm text-muted-foreground">{result.transcript}</p>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass-card glass-card-hover rounded-2xl p-6 space-y-4">
+              <h3 className="font-display text-lg font-semibold">AI Feedback</h3>
+              <p className="text-sm text-foreground">{result.feedback}</p>
+            </motion.div>
           </motion.div>
         )}
-        {!recording && !mutation.isPending && (
-          <div className="flex h-28 w-28 items-center justify-center rounded-full border-2 border-dashed border-border">
-            <Mic className="h-10 w-10 text-muted-foreground" />
-          </div>
-        )}
-        {mutation.isPending && <Loader2 className="h-12 w-12 animate-spin text-primary" />}
-
-        <p className="text-sm text-muted-foreground">{recording ? "Recording... Speak your answer" : mutation.isPending ? "Processing your answer..." : "Click to start recording"}</p>
-
-        {!recording ? (
-          <Button variant="gradient" size="lg" onClick={startRecording} disabled={mutation.isPending}>
-            <Mic className="mr-2 h-4 w-4" /> Start Recording
-          </Button>
-        ) : (
-          <Button variant="destructive" size="lg" onClick={stopRecording}>
-            <Square className="mr-2 h-4 w-4" /> Stop Recording
-          </Button>
-        )}
       </div>
-
-      {mutation.isPending && <Skeleton className="h-48 w-full rounded-2xl" />}
-
-      {result && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-3">
-            {scoreCards.map((s) => (
-              <div key={s.label} className="glass-card rounded-xl p-6 text-center">
-                <s.icon className={`mx-auto mb-2 h-6 w-6 ${s.color}`} />
-                <p className="text-sm text-muted-foreground">{s.label}</p>
-                <p className="mt-1 text-3xl font-bold text-foreground">{s.value}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="glass-card rounded-2xl p-6 space-y-4">
-            <h3 className="font-display text-lg font-semibold">Transcript</h3>
-            <p className="text-sm text-muted-foreground">{result.transcript}</p>
-          </div>
-          <div className="glass-card rounded-2xl p-6 space-y-4">
-            <h3 className="font-display text-lg font-semibold">AI Feedback</h3>
-            <p className="text-sm text-foreground">{result.feedback}</p>
-          </div>
-        </motion.div>
-      )}
-    </div>
+    </PageTransition>
   );
 }
