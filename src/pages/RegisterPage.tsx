@@ -4,8 +4,9 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Compass } from "lucide-react";
+import { Compass, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
@@ -30,11 +31,16 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 transition-colors duration-300">
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -bottom-1/4 right-1/4 h-[500px] w-[500px] rounded-full bg-accent/8 blur-[120px]" />
       </div>
-      <div className="glass-card relative z-10 w-full max-w-md rounded-2xl p-8">
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.4 }}
+        className="glass-card relative z-10 w-full max-w-md rounded-2xl p-8"
+      >
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2">
             <Compass className="h-8 w-8 text-primary" />
@@ -56,14 +62,14 @@ export default function RegisterPage() {
             <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
           </div>
           <Button type="submit" variant="gradient" className="w-full" disabled={loading}>
-            {loading ? "Creating account..." : "Create Account"}
+            {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating account...</> : "Create Account"}
           </Button>
         </form>
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Already have an account?{" "}
           <Link to="/login" className="text-primary hover:underline">Sign In</Link>
         </p>
-      </div>
+      </motion.div>
     </div>
   );
 }
