@@ -110,9 +110,10 @@ export default function LandingPage() {
               <motion.div
                 key={f.title}
                 variants={item}
-                className="glass-card group rounded-xl p-6 transition-all hover:glow-primary"
+                whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                className="glass-card glass-card-hover group rounded-xl p-6"
               >
-                <div className="mb-4 inline-flex rounded-lg bg-primary/10 p-3 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                <div className="mb-4 inline-flex rounded-lg bg-primary/10 p-3 text-primary transition-all duration-300 group-hover:bg-primary group-hover:text-primary-foreground group-hover:shadow-[0_0_20px_-4px_hsl(var(--primary)/0.5)]">
                   <f.icon className="h-6 w-6" />
                 </div>
                 <h3 className="mb-2 font-display text-lg font-semibold text-foreground">{f.title}</h3>

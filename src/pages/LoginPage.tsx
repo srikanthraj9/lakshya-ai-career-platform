@@ -39,7 +39,12 @@ export default function LoginPage() {
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-1/4 left-1/4 h-[500px] w-[500px] rounded-full bg-primary/8 blur-[120px]" />
       </div>
-      <div className="glass-card relative z-10 w-full max-w-md rounded-2xl p-8">
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.4 }}
+        className="glass-card relative z-10 w-full max-w-md rounded-2xl p-8"
+      >
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2">
             <Compass className="h-8 w-8 text-primary" />
@@ -57,14 +62,14 @@ export default function LoginPage() {
             <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
           </div>
           <Button type="submit" variant="gradient" className="w-full" disabled={loading}>
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Signing in...</> : "Sign In"}
           </Button>
         </form>
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Don't have an account?{" "}
           <Link to="/register" className="text-primary hover:underline">Register</Link>
         </p>
-      </div>
+      </motion.div>
     </div>
   );
 }
