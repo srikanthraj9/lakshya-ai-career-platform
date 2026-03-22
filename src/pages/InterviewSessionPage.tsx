@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { Send, Loader2 } from "lucide-react";
+import { PageTransition } from "@/components/PageTransition";
 import type { InterviewQuestion } from "@/types";
 
 export default function InterviewSessionPage() {
@@ -53,32 +54,34 @@ export default function InterviewSessionPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-3xl font-bold">Interview Session</h1>
-          <p className="text-muted-foreground">Question {questionCount}</p>
-        </div>
-        <Button variant="outline" onClick={handleEnd}>End Interview</Button>
-      </div>
-
-      {question && (
-        <motion.div key={question.question_id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-          <div className="glass-card rounded-2xl p-6">
-            <p className="text-lg font-medium text-foreground">{question.question}</p>
+    <PageTransition>
+      <div className="mx-auto max-w-2xl space-y-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-display text-3xl font-bold">Interview Session</h1>
+            <p className="text-muted-foreground">Question {questionCount}</p>
           </div>
-          <Textarea
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            placeholder="Type your answer..."
-            className="min-h-[150px] bg-secondary/30"
-          />
-          <Button variant="gradient" className="w-full" onClick={handleSubmit} disabled={loading || !answer.trim()}>
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-            Submit Answer
-          </Button>
-        </motion.div>
-      )}
-    </div>
+          <Button variant="outline" onClick={handleEnd}>End Interview</Button>
+        </div>
+
+        {question && (
+          <motion.div key={question.question_id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+            <div className="glass-card glass-card-hover rounded-2xl p-6">
+              <p className="text-lg font-medium text-foreground">{question.question}</p>
+            </div>
+            <Textarea
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              placeholder="Type your answer..."
+              className="min-h-[150px] bg-secondary/30"
+            />
+            <Button variant="gradient" className="w-full" onClick={handleSubmit} disabled={loading || !answer.trim()}>
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              Submit Answer
+            </Button>
+          </motion.div>
+        )}
+      </div>
+    </PageTransition>
   );
 }
