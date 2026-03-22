@@ -46,10 +46,12 @@ export function AppSidebar() {
           const isActive = location.pathname.startsWith(item.href);
           return (
             <Link key={item.href} to={item.href} className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-              isActive ? "bg-primary/10 text-primary" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+              isActive
+                ? "bg-primary/10 text-primary shadow-[inset_3px_0_0_hsl(var(--primary))]"
+                : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:translate-x-0.5"
             )}>
-              <item.icon className="h-5 w-5 shrink-0" />
+              <item.icon className={cn("h-5 w-5 shrink-0 transition-transform duration-200", !isActive && "group-hover:scale-110")} />
               {!collapsed && <span>{item.title}</span>}
             </Link>
           );
