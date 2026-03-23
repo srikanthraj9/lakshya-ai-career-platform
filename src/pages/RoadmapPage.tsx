@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { roadmapService } from "@/services/roadmap";
 import { Button } from "@/components/ui/button";
@@ -24,8 +24,10 @@ export default function RoadmapPage() {
   const mutation = useMutation({
     mutationFn: () => roadmapService.generate(role),
     onSuccess: (data) => setRoadmap(data.roadmap),
-    onError: () => toast.error("Failed to generate roadmap."),
+    onError: () => toast.error("Failed to generate roadmap. Please try again."),
   });
+
+  const handleGenerate = useCallback(() => mutation.mutate(), [mutation]);
 
   return (
     <PageTransition>
@@ -40,23 +42,23 @@ export default function RoadmapPage() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-card glass-card-hover rounded-2xl p-6 space-y-4"
         >
-          <Input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Target role, e.g. AI Engineer" className="bg-secondary/30" />
+          <Input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Target role, e.g. AI Engineer" className="bg-secondary/30" aria-label="Target role" />
           <Select value={experience} onValueChange={setExperience}>
-            <SelectTrigger className="bg-secondary/30">
+            <SelectTrigger className="bg-secondary/30" aria-label="Current experience level">
               <SelectValue placeholder="Current experience level" />
             </SelectTrigger>
             <SelectContent>
               {experienceLevels.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button variant="gradient" className="w-full" onClick={() => mutation.mutate()} disabled={!role || !experience || mutation.isPending}>
+          <Button variant="gradient" className="w-full" onClick={handleGenerate} disabled={!role || !experience || mutation.isPending} aria-label="Generate roadmap">
             {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Rocket className="mr-2 h-4 w-4" />}
             Generate Roadmap
           </Button>
         </motion.div>
 
         {mutation.isPending && (
-          <div className="space-y-6">
+          <div className="space-y-6" role="status" aria-label="Generating roadmap">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-32 w-full rounded-2xl" />)}
           </div>
         )}
@@ -70,11 +72,11 @@ export default function RoadmapPage() {
         )}
 
         {roadmap.length > 0 && (
-          <div className="relative">
-            <div className="absolute left-6 top-0 h-full w-px bg-gradient-to-b from-primary via-accent to-transparent" />
+          <div className="relative" role="list" aria-label="Learning roadmap">
+            <div className="absolute left-6 top-0 h-full w-px bg-gradient-to-b from-primary via-accent to-transparent" aria-hidden="true" />
             {roadmap.map((stage, i) => (
-              <motion.div key={stage.stage} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.15 }} className="relative mb-8 ml-14">
-                <div className="absolute -left-[2.6rem] top-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary bg-background">
+              <motion.div key={stage.stage} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.15 }} className="relative mb-8 ml-14" role="listitem">
+                <div className="absolute -left-[2.6rem] top-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary bg-background" aria-hidden="true">
                   {i === 0 ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
                 </div>
                 <div className="glass-card glass-card-hover rounded-2xl p-6">
@@ -82,9 +84,9 @@ export default function RoadmapPage() {
                     <h3 className="font-display text-lg font-semibold text-foreground">{stage.stage}</h3>
                     <span className="text-xs text-muted-foreground">{estimatedDurations[i] ?? "Ongoing"}</span>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2" role="list" aria-label={`${stage.stage} skills`}>
                     {stage.skills.map((skill, si) => (
-                      <motion.div key={skill} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.15 + si * 0.03 }}>
+                      <motion.div key={skill} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.15 + si * 0.03 }} role="listitem">
                         <Badge variant="secondary" className="bg-primary/10 text-primary">{skill}</Badge>
                       </motion.div>
                     ))}

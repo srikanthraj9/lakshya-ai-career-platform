@@ -5,10 +5,12 @@ import { FileText, Brain, Award, TrendingUp, Sparkles, Target } from "lucide-rea
 import { Skeleton } from "@/components/ui/skeleton";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { PageTransition } from "@/components/PageTransition";
+import { ErrorFallback } from "@/components/ErrorFallback";
 import {
   LineChart, Line, BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area,
 } from "recharts";
+import { useMemo } from "react";
 
 const statCards = [
   { key: "ats_score", label: "ATS Score", icon: Award, color: "text-primary", suffix: "%" },
@@ -18,27 +20,43 @@ const statCards = [
 ] as const;
 
 export default function DashboardPage() {
-  const { data: summary, isLoading } = useQuery({
+  const { data: summary, isLoading, isError, refetch } = useQuery({
     queryKey: ["analytics-summary"],
     queryFn: analyticsService.getSummary,
+    retry: 2,
   });
 
   const { data: atsTrend } = useQuery({
     queryKey: ["ats-trend"],
     queryFn: analyticsService.getATSTrend,
+    retry: 2,
   });
 
   const { data: skillGrowth } = useQuery({
     queryKey: ["skill-growth"],
     queryFn: analyticsService.getSkillGrowth,
+    retry: 2,
   });
 
   const { data: careerProgress } = useQuery({
     queryKey: ["career-progress"],
     queryFn: analyticsService.getCareerProgress,
+    retry: 2,
   });
 
-  const radarData = skillGrowth?.slice(0, 6).map((s) => ({ skill: s.skill, value: s.count, fullMark: Math.max(...(skillGrowth?.map((x) => x.count) ?? [10])) }));
+  const radarData = useMemo(() => {
+    if (!skillGrowth?.length) return undefined;
+    const maxVal = Math.max(...skillGrowth.map((x) => x.count), 10);
+    return skillGrowth.slice(0, 6).map((s) => ({ skill: s.skill, value: s.count, fullMark: maxVal }));
+  }, [skillGrowth]);
+
+  if (isError) {
+    return (
+      <PageTransition>
+        <ErrorFallback title="Dashboard Unavailable" message="Failed to load your dashboard data." onRetry={() => refetch()} />
+      </PageTransition>
+    );
+  }
 
   return (
     <PageTransition>
@@ -49,7 +67,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" role="list" aria-label="Career statistics">
           {statCards.map((card, i) => (
             <motion.div
               key={card.key}
@@ -58,6 +76,8 @@ export default function DashboardPage() {
               transition={{ delay: i * 0.1 }}
               className="glass-card glass-card-hover animate-float-slow rounded-xl p-6"
               style={{ animationDelay: `${i * 0.5}s` }}
+              role="listitem"
+              aria-label={`${card.label}: ${summary?.[card.key] ?? 0}${card.suffix}`}
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -68,7 +88,7 @@ export default function DashboardPage() {
                     </p>
                   )}
                 </div>
-                <card.icon className={`h-8 w-8 ${card.color} transition-transform duration-300 group-hover:scale-110`} />
+                <card.icon className={`h-8 w-8 ${card.color} transition-transform duration-300 group-hover:scale-110`} aria-hidden="true" />
               </div>
             </motion.div>
           ))}
@@ -78,12 +98,12 @@ export default function DashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass-card glass-card-hover glow-primary rounded-xl p-6">
             <div className="flex items-center gap-3 mb-3">
-              <Sparkles className="h-5 w-5 text-primary" />
+              <Sparkles className="h-5 w-5 text-primary" aria-hidden="true" />
               <h3 className="font-display font-semibold text-foreground">AI Resume Improvement</h3>
             </div>
             <p className="text-sm text-muted-foreground">Your resume can be improved by addressing formatting, keyword optimization and quantifying achievements.</p>
             {isLoading ? <Skeleton className="mt-3 h-2 w-full rounded-full" /> : (
-              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-secondary">
+              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-secondary" role="progressbar" aria-valuenow={summary?.ats_score ?? 0} aria-valuemin={0} aria-valuemax={100}>
                 <motion.div
                   className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
                   initial={{ width: 0 }}
@@ -95,12 +115,12 @@ export default function DashboardPage() {
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="glass-card glass-card-hover glow-accent rounded-xl p-6">
             <div className="flex items-center gap-3 mb-3">
-              <Target className="h-5 w-5 text-accent" />
+              <Target className="h-5 w-5 text-accent" aria-hidden="true" />
               <h3 className="font-display font-semibold text-foreground">Interview Performance Trend</h3>
             </div>
             <p className="text-sm text-muted-foreground">Track your mock interview scores over time to measure readiness.</p>
             {isLoading ? <Skeleton className="mt-3 h-2 w-full rounded-full" /> : (
-              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-secondary">
+              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-secondary" role="progressbar" aria-valuenow={summary?.interview_score ?? 0} aria-valuemin={0} aria-valuemax={100}>
                 <motion.div
                   className="h-full rounded-full bg-gradient-to-r from-accent to-chart-3"
                   initial={{ width: 0 }}
@@ -165,7 +185,7 @@ export default function DashboardPage() {
               className="glass-card glass-card-hover rounded-xl p-6"
             >
               <h3 className="mb-4 font-display text-lg font-semibold">{section.title}</h3>
-              <div className="h-64">
+              <div className="h-64" role="img" aria-label={`${section.title} chart`}>
                 {section.data ? (
                   <ResponsiveContainer width="100%" height="100%">
                     {section.chart(section.data)}

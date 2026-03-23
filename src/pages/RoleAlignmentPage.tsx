@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { roleService } from "@/services/role";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ export default function RoleAlignmentPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<RoleAlignment | null>(null);
 
-  const handleAnalyze = async (e: React.FormEvent) => {
+  const handleAnalyze = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resumeId || !role) return;
     setLoading(true);
@@ -29,7 +29,7 @@ export default function RoleAlignmentPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [resumeId, role]);
 
   return (
     <PageTransition>
@@ -42,15 +42,15 @@ export default function RoleAlignmentPage() {
         <form onSubmit={handleAnalyze} className="glass-card rounded-2xl p-6 space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Resume ID</Label>
-              <Input value={resumeId} onChange={(e) => setResumeId(e.target.value)} placeholder="Enter resume ID" required />
+              <Label htmlFor="role-resume-id">Resume ID</Label>
+              <Input id="role-resume-id" value={resumeId} onChange={(e) => setResumeId(e.target.value)} placeholder="Enter resume ID" required aria-required="true" />
             </div>
             <div className="space-y-2">
-              <Label>Target Role</Label>
-              <Input value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Frontend Developer" required />
+              <Label htmlFor="target-role">Target Role</Label>
+              <Input id="target-role" value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Frontend Developer" required aria-required="true" />
             </div>
           </div>
-          <Button variant="gradient" type="submit" disabled={loading}>
+          <Button variant="gradient" type="submit" disabled={loading || !resumeId || !role} aria-label="Analyze role alignment">
             {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Analyzing...</> : "Analyze Alignment"}
           </Button>
         </form>
@@ -63,6 +63,11 @@ export default function RoleAlignmentPage() {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                role="meter"
+                aria-valuenow={result.match_percentage}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Role match percentage"
               >
                 <span className="font-display text-4xl font-bold text-primary">
                   <AnimatedCounter value={result.match_percentage} suffix="%" />
@@ -76,20 +81,20 @@ export default function RoleAlignmentPage() {
 
             <div className="grid gap-6 sm:grid-cols-2">
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="glass-card glass-card-hover rounded-2xl p-6">
-                <h3 className="mb-3 flex items-center gap-2 font-semibold"><CheckCircle className="h-5 w-5 text-chart-4" /> Matched Skills</h3>
-                <div className="flex flex-wrap gap-2">
+                <h3 className="mb-3 flex items-center gap-2 font-semibold"><CheckCircle className="h-5 w-5 text-chart-4" aria-hidden="true" /> Matched Skills</h3>
+                <div className="flex flex-wrap gap-2" role="list" aria-label="Matched skills">
                   {result.matched_skills.map((s, i) => (
-                    <motion.div key={s} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 + i * 0.05 }}>
+                    <motion.div key={s} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 + i * 0.05 }} role="listitem">
                       <Badge variant="secondary">{s}</Badge>
                     </motion.div>
                   ))}
                 </div>
               </motion.div>
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }} className="glass-card glass-card-hover rounded-2xl p-6">
-                <h3 className="mb-3 flex items-center gap-2 font-semibold"><XCircle className="h-5 w-5 text-destructive" /> Missing Skills</h3>
-                <div className="flex flex-wrap gap-2">
+                <h3 className="mb-3 flex items-center gap-2 font-semibold"><XCircle className="h-5 w-5 text-destructive" aria-hidden="true" /> Missing Skills</h3>
+                <div className="flex flex-wrap gap-2" role="list" aria-label="Missing skills">
                   {result.missing_skills.map((s, i) => (
-                    <motion.div key={s} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.4 + i * 0.05 }}>
+                    <motion.div key={s} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.4 + i * 0.05 }} role="listitem">
                       <Badge variant="outline">{s}</Badge>
                     </motion.div>
                   ))}
@@ -99,8 +104,8 @@ export default function RoleAlignmentPage() {
 
             {result.learning_path?.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="glass-card glass-card-hover rounded-2xl p-6">
-                <h3 className="mb-3 flex items-center gap-2 font-semibold"><BookOpen className="h-5 w-5 text-accent" /> Learning Path</h3>
-                <ol className="space-y-2">
+                <h3 className="mb-3 flex items-center gap-2 font-semibold"><BookOpen className="h-5 w-5 text-accent" aria-hidden="true" /> Learning Path</h3>
+                <ol className="space-y-2" aria-label="Recommended learning path">
                   {result.learning_path.map((step, i) => (
                     <motion.li
                       key={i}
@@ -109,7 +114,7 @@ export default function RoleAlignmentPage() {
                       transition={{ delay: 0.6 + i * 0.08 }}
                       className="flex items-start gap-3 text-sm text-muted-foreground"
                     >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">{i + 1}</span>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent" aria-hidden="true">{i + 1}</span>
                       {step}
                     </motion.li>
                   ))}
