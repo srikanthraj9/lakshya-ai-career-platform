@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { resumeRewriteService } from "@/services/resumeRewrite";
 import { Button } from "@/components/ui/button";
@@ -17,15 +17,15 @@ export default function ResumeRewritePage() {
   const mutation = useMutation({
     mutationFn: () => resumeRewriteService.rewrite(original),
     onSuccess: (data) => { setRewritten(data.rewritten_resume); toast.success("Resume rewritten!"); },
-    onError: () => toast.error("Failed to rewrite resume."),
+    onError: () => toast.error("Failed to rewrite resume. Please try again."),
   });
 
-  const handleCopy = () => {
+  const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(rewritten);
     setCopied(true);
     toast.success("Copied to clipboard!");
     setTimeout(() => setCopied(false), 2000);
-  };
+  }, [rewritten]);
 
   return (
     <PageTransition>
@@ -38,8 +38,8 @@ export default function ResumeRewritePage() {
         <div className="grid gap-6 lg:grid-cols-2">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
             <h3 className="font-display text-lg font-semibold text-foreground">Original Resume</h3>
-            <Textarea value={original} onChange={(e) => setOriginal(e.target.value)} placeholder="Paste your resume text here..." className="min-h-[400px] bg-secondary/30 font-mono text-sm" />
-            <Button variant="gradient" className="w-full" onClick={() => mutation.mutate()} disabled={!original.trim() || mutation.isPending}>
+            <Textarea value={original} onChange={(e) => setOriginal(e.target.value)} placeholder="Paste your resume text here..." className="min-h-[400px] bg-secondary/30 font-mono text-sm" aria-label="Original resume text" />
+            <Button variant="gradient" className="w-full" onClick={() => mutation.mutate()} disabled={!original.trim() || mutation.isPending} aria-label="Rewrite resume with AI">
               {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
               Rewrite with AI
             </Button>
@@ -49,7 +49,7 @@ export default function ResumeRewritePage() {
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-semibold text-foreground">AI-Enhanced Version</h3>
               {rewritten && (
-                <Button variant="outline" size="sm" onClick={handleCopy}>
+                <Button variant="outline" size="sm" onClick={handleCopy} aria-label={copied ? "Copied" : "Copy to clipboard"}>
                   {copied ? <Check className="mr-1 h-3 w-3" /> : <Copy className="mr-1 h-3 w-3" />}
                   {copied ? "Copied" : "Copy"}
                 </Button>
@@ -64,7 +64,7 @@ export default function ResumeRewritePage() {
             ) : (
               <div className="flex min-h-[400px] items-center justify-center rounded-xl border border-dashed border-border">
                 <div className="text-center">
-                  <Wand2 className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+                  <Wand2 className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" aria-hidden="true" />
                   <p className="text-sm text-muted-foreground">AI-enhanced resume will appear here</p>
                 </div>
               </div>

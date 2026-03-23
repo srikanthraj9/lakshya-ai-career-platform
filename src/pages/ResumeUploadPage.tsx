@@ -22,12 +22,11 @@ export default function ResumeUploadPage() {
     if (dropped) setFile(dropped);
   }, []);
 
-  const handleUpload = async () => {
+  const handleUpload = useCallback(async () => {
     if (!file) return;
     setUploading(true);
     setUploadProgress(0);
 
-    // Simulate progress
     const progressInterval = setInterval(() => {
       setUploadProgress((prev) => {
         if (prev >= 90) { clearInterval(progressInterval); return 90; }
@@ -49,7 +48,7 @@ export default function ResumeUploadPage() {
     } finally {
       setUploading(false);
     }
-  };
+  }, [file, navigate]);
 
   return (
     <PageTransition>
@@ -72,23 +71,25 @@ export default function ResumeUploadPage() {
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
+          role="region"
+          aria-label="File upload area"
         >
           <AnimatePresence mode="wait">
             {success ? (
               <motion.div key="success" initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex flex-col items-center">
-                <CheckCircle className="mb-4 h-12 w-12 text-chart-4" />
+                <CheckCircle className="mb-4 h-12 w-12 text-chart-4" aria-hidden="true" />
                 <p className="text-lg font-medium text-foreground">Upload Complete!</p>
                 <p className="text-sm text-muted-foreground">Redirecting to analysis...</p>
               </motion.div>
             ) : file ? (
               <motion.div key="file" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center">
-                <FileText className="mb-4 h-12 w-12 text-primary" />
+                <FileText className="mb-4 h-12 w-12 text-primary" aria-hidden="true" />
                 <p className="text-lg font-medium text-foreground">{file.name}</p>
                 <p className="text-sm text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
               </motion.div>
             ) : (
               <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center">
-                <Upload className={`mb-4 h-12 w-12 transition-transform duration-300 ${dragOver ? "text-primary scale-110" : "text-muted-foreground"}`} />
+                <Upload className={`mb-4 h-12 w-12 transition-transform duration-300 ${dragOver ? "text-primary scale-110" : "text-muted-foreground"}`} aria-hidden="true" />
                 <p className="text-lg font-medium text-foreground">Drag & drop your resume</p>
                 <p className="text-sm text-muted-foreground">or click to browse</p>
               </motion.div>
@@ -99,17 +100,17 @@ export default function ResumeUploadPage() {
             accept=".pdf,.doc,.docx"
             className="absolute inset-0 cursor-pointer opacity-0"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
+            aria-label="Choose resume file"
           />
         </motion.div>
 
-        {/* Upload Progress */}
         {uploading && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>Uploading & Analyzing...</span>
               <span>{Math.round(uploadProgress)}%</span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-secondary" role="progressbar" aria-valuenow={Math.round(uploadProgress)} aria-valuemin={0} aria-valuemax={100}>
               <motion.div
                 className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
                 animate={{ width: `${uploadProgress}%` }}
@@ -119,7 +120,7 @@ export default function ResumeUploadPage() {
           </motion.div>
         )}
 
-        <Button variant="gradient" className="w-full" disabled={!file || uploading || success} onClick={handleUpload}>
+        <Button variant="gradient" className="w-full" disabled={!file || uploading || success} onClick={handleUpload} aria-label="Upload and analyze resume">
           {uploading ? "Analyzing..." : success ? "Done!" : "Upload & Analyze"}
         </Button>
       </div>

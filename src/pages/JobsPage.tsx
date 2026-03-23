@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { jobsService } from "@/services/jobs";
 import { Button } from "@/components/ui/button";
@@ -10,16 +10,22 @@ import { motion } from "framer-motion";
 import { Briefcase, Building, Percent, Search } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorFallback } from "@/components/ErrorFallback";
 
 export default function JobsPage() {
   const [resumeId, setResumeId] = useState("");
   const [searchId, setSearchId] = useState("");
 
-  const { data: jobs, isLoading } = useQuery({
+  const { data: jobs, isLoading, isError, refetch } = useQuery({
     queryKey: ["jobs", searchId],
     queryFn: () => jobsService.getRecommendations(searchId),
     enabled: !!searchId,
+    retry: 2,
   });
+
+  const handleSearch = useCallback(() => setSearchId(resumeId), [resumeId]);
+
+  const jobList = useMemo(() => jobs ?? [], [jobs]);
 
   return (
     <PageTransition>
@@ -31,17 +37,19 @@ export default function JobsPage() {
 
         <div className="flex gap-3 items-end">
           <div className="flex-1 space-y-2">
-            <Label>Resume ID</Label>
-            <Input value={resumeId} onChange={(e) => setResumeId(e.target.value)} placeholder="Enter your resume ID" />
+            <Label htmlFor="resume-id-input">Resume ID</Label>
+            <Input id="resume-id-input" value={resumeId} onChange={(e) => setResumeId(e.target.value)} placeholder="Enter your resume ID" aria-describedby="resume-id-help" />
           </div>
-          <Button variant="gradient" onClick={() => setSearchId(resumeId)} disabled={!resumeId}>
+          <Button variant="gradient" onClick={handleSearch} disabled={!resumeId || isLoading} aria-label="Find matching jobs">
             Find Jobs
           </Button>
         </div>
 
-        {isLoading && <div className="grid gap-4 md:grid-cols-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}</div>}
+        {isLoading && <div className="grid gap-4 md:grid-cols-2" role="status" aria-label="Loading jobs">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}</div>}
 
-        {!searchId && !isLoading && (
+        {isError && <ErrorFallback title="Jobs Load Failed" message="Failed to load job recommendations." onRetry={() => refetch()} />}
+
+        {!searchId && !isLoading && !isError && (
           <EmptyState
             icon={Search}
             title="Search for Jobs"
@@ -49,7 +57,7 @@ export default function JobsPage() {
           />
         )}
 
-        {jobs && jobs.length === 0 && (
+        {jobList.length === 0 && searchId && !isLoading && !isError && (
           <EmptyState
             icon={Briefcase}
             title="No Jobs Found"
@@ -59,32 +67,33 @@ export default function JobsPage() {
           />
         )}
 
-        {jobs && jobs.length > 0 && (
-          <div className="grid gap-4 md:grid-cols-2">
-            {jobs.map((job, i) => (
+        {jobList.length > 0 && (
+          <div className="grid gap-4 md:grid-cols-2" role="list" aria-label="Recommended jobs">
+            {jobList.map((job, i) => (
               <motion.div
                 key={job.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
                 className="glass-card glass-card-hover rounded-xl p-6 space-y-3"
+                role="listitem"
               >
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-display font-semibold text-foreground flex items-center gap-2">
-                      <Briefcase className="h-4 w-4 text-primary" /> {job.title}
+                      <Briefcase className="h-4 w-4 text-primary" aria-hidden="true" /> {job.title}
                     </h3>
                     <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                      <Building className="h-3.5 w-3.5" /> {job.company}
+                      <Building className="h-3.5 w-3.5" aria-hidden="true" /> {job.company}
                     </p>
                   </div>
                   <Badge variant="secondary" className="flex items-center gap-1">
-                    <Percent className="h-3 w-3" /> {job.match_percentage}%
+                    <Percent className="h-3 w-3" aria-hidden="true" /> {job.match_percentage}%
                   </Badge>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5" role="list" aria-label="Required skills">
                   {job.required_skills.map((s) => (
-                    <Badge key={s} variant="outline" className="text-xs">{s}</Badge>
+                    <Badge key={s} variant="outline" className="text-xs" role="listitem">{s}</Badge>
                   ))}
                 </div>
               </motion.div>

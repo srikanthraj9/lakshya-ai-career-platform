@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { copilotService } from "@/services/copilot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +27,7 @@ export default function CopilotPage() {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
     const userMsg: CopilotMessage = { id: crypto.randomUUID(), role: "user", content: text, timestamp: new Date() };
     setMessages((prev) => [...prev, userMsg]);
@@ -42,7 +42,12 @@ export default function CopilotPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading]);
+
+  const handleSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    sendMessage(input);
+  }, [input, sendMessage]);
 
   return (
     <PageTransition>
@@ -52,7 +57,7 @@ export default function CopilotPage() {
           <p className="text-muted-foreground">Your personal AI career advisor.</p>
         </div>
 
-        <div className="flex-1 overflow-hidden rounded-2xl glass-card">
+        <div className="flex-1 overflow-hidden rounded-2xl glass-card" role="log" aria-label="Chat messages" aria-live="polite">
           <ScrollArea className="h-full p-4">
             {messages.length === 0 && (
               <motion.div
@@ -61,15 +66,16 @@ export default function CopilotPage() {
                 className="flex h-full flex-col items-center justify-center gap-6 py-16"
               >
                 <div className="rounded-full bg-primary/10 p-4">
-                  <Sparkles className="h-10 w-10 text-primary" />
+                  <Sparkles className="h-10 w-10 text-primary" aria-hidden="true" />
                 </div>
                 <p className="text-lg text-muted-foreground">Start a conversation with your AI Career Copilot</p>
-                <div className="flex flex-wrap justify-center gap-2">
+                <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="Suggested prompts">
                   {promptSuggestions.map((p) => (
                     <button
                       key={p}
                       onClick={() => sendMessage(p)}
-                      className="rounded-full border border-border bg-secondary/50 px-4 py-2 text-sm text-foreground transition-all duration-200 hover:bg-primary/10 hover:border-primary/30 hover:scale-105 active:scale-95"
+                      className="rounded-full border border-border bg-secondary/50 px-4 py-2 text-sm text-foreground transition-all duration-200 hover:bg-primary/10 hover:border-primary/30 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={`Ask: ${p}`}
                     >
                       {p}
                     </button>
@@ -88,7 +94,7 @@ export default function CopilotPage() {
                   className={`mb-4 flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   {msg.role === "assistant" && (
-                    <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                    <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20" aria-hidden="true">
                       <Bot className="h-4 w-4 text-primary" />
                     </div>
                   )}
@@ -102,7 +108,7 @@ export default function CopilotPage() {
                     )}
                   </div>
                   {msg.role === "user" && (
-                    <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/20">
+                    <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/20" aria-hidden="true">
                       <User className="h-4 w-4 text-accent" />
                     </div>
                   )}
@@ -111,8 +117,8 @@ export default function CopilotPage() {
             </AnimatePresence>
 
             {loading && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 flex gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 flex gap-3" role="status" aria-label="AI is typing">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20" aria-hidden="true">
                   <Bot className="h-4 w-4 text-primary" />
                 </div>
                 <div className="flex items-center gap-1.5 rounded-2xl bg-secondary/60 px-4 py-3">
@@ -126,9 +132,9 @@ export default function CopilotPage() {
           </ScrollArea>
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="mt-4 flex gap-2">
-          <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask your AI Career Copilot..." className="flex-1 bg-secondary/30" disabled={loading} />
-          <Button type="submit" variant="gradient" disabled={loading || !input.trim()}>
+        <form onSubmit={handleSubmit} className="mt-4 flex gap-2">
+          <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask your AI Career Copilot..." className="flex-1 bg-secondary/30" disabled={loading} aria-label="Type your message" />
+          <Button type="submit" variant="gradient" disabled={loading || !input.trim()} aria-label="Send message">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </form>

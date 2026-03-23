@@ -19,7 +19,7 @@ export default function VoiceInterviewPage() {
   const mutation = useMutation({
     mutationFn: (blob: Blob) => voiceInterviewService.submitVoiceAnswer(blob),
     onSuccess: (data) => { setResult(data); toast.success("Voice answer evaluated!"); },
-    onError: () => toast.error("Failed to process voice answer."),
+    onError: () => toast.error("Failed to process voice answer. Please try again."),
   });
 
   const startRecording = useCallback(async () => {
@@ -37,7 +37,7 @@ export default function VoiceInterviewPage() {
       mediaRecorder.current = recorder;
       setRecording(true);
     } catch {
-      toast.error("Microphone access required.");
+      toast.error("Microphone access is required for voice interviews.");
     }
   }, [mutation]);
 
@@ -64,30 +64,32 @@ export default function VoiceInterviewPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="glass-card glass-card-hover flex flex-col items-center gap-6 rounded-2xl p-10"
+          role="region"
+          aria-label="Voice recorder"
         >
           {recording && (
-            <motion.div initial={{ scale: 0.8 }} animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="flex h-28 w-28 items-center justify-center rounded-full bg-destructive/20">
+            <motion.div initial={{ scale: 0.8 }} animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="flex h-28 w-28 items-center justify-center rounded-full bg-destructive/20" aria-live="polite">
               <div className="flex h-20 w-20 items-center justify-center rounded-full bg-destructive/30">
-                <Mic className="h-10 w-10 text-destructive" />
+                <Mic className="h-10 w-10 text-destructive" aria-hidden="true" />
               </div>
             </motion.div>
           )}
           {!recording && !mutation.isPending && (
             <div className="flex h-28 w-28 items-center justify-center rounded-full border-2 border-dashed border-border transition-colors hover:border-primary/30">
-              <Mic className="h-10 w-10 text-muted-foreground" />
+              <Mic className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
             </div>
           )}
-          {mutation.isPending && <Loader2 className="h-12 w-12 animate-spin text-primary" />}
+          {mutation.isPending && <Loader2 className="h-12 w-12 animate-spin text-primary" aria-label="Processing" />}
 
-          <p className="text-sm text-muted-foreground">{recording ? "Recording... Speak your answer" : mutation.isPending ? "Processing your answer..." : "Click to start recording"}</p>
+          <p className="text-sm text-muted-foreground" aria-live="polite">{recording ? "Recording... Speak your answer" : mutation.isPending ? "Processing your answer..." : "Click to start recording"}</p>
 
           {!recording ? (
-            <Button variant="gradient" size="lg" onClick={startRecording} disabled={mutation.isPending}>
-              <Mic className="mr-2 h-4 w-4" /> Start Recording
+            <Button variant="gradient" size="lg" onClick={startRecording} disabled={mutation.isPending} aria-label="Start recording">
+              <Mic className="mr-2 h-4 w-4" aria-hidden="true" /> Start Recording
             </Button>
           ) : (
-            <Button variant="destructive" size="lg" onClick={stopRecording}>
-              <Square className="mr-2 h-4 w-4" /> Stop Recording
+            <Button variant="destructive" size="lg" onClick={stopRecording} aria-label="Stop recording">
+              <Square className="mr-2 h-4 w-4" aria-hidden="true" /> Stop Recording
             </Button>
           )}
         </motion.div>
@@ -96,10 +98,10 @@ export default function VoiceInterviewPage() {
 
         {result && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-3" role="list" aria-label="Evaluation scores">
               {scoreCards.map((s, i) => (
-                <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="glass-card glass-card-hover rounded-xl p-6 text-center">
-                  <s.icon className={`mx-auto mb-2 h-6 w-6 ${s.color}`} />
+                <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="glass-card glass-card-hover rounded-xl p-6 text-center" role="listitem">
+                  <s.icon className={`mx-auto mb-2 h-6 w-6 ${s.color}`} aria-hidden="true" />
                   <p className="text-sm text-muted-foreground">{s.label}</p>
                   <p className="mt-1 text-3xl font-bold text-foreground"><AnimatedCounter value={s.value} /></p>
                 </motion.div>

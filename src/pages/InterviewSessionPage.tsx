@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { interviewService } from "@/services/interview";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { Send, Loader2 } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
+import { ErrorFallback } from "@/components/ErrorFallback";
 import type { InterviewQuestion } from "@/types";
 
 export default function InterviewSessionPage() {
@@ -17,25 +18,32 @@ export default function InterviewSessionPage() {
   const [question, setQuestion] = useState<InterviewQuestion | null>(null);
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const [questionCount, setQuestionCount] = useState(0);
 
-  const fetchQuestion = async () => {
+  const fetchQuestion = useCallback(async () => {
+    setFetchError(false);
     try {
       const q = await interviewService.getQuestion();
       setQuestion(q);
       setQuestionCount((c) => c + 1);
       setAnswer("");
     } catch {
-      toast.info("Interview complete!");
-      if (sessionId) navigate(`/interview/report/${sessionId}`);
+      if (questionCount > 0) {
+        toast.info("Interview complete!");
+        if (sessionId) navigate(`/interview/report/${sessionId}`);
+      } else {
+        setFetchError(true);
+      }
     }
-  };
+  }, [sessionId, navigate, questionCount]);
 
   useEffect(() => {
     fetchQuestion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!question || !answer.trim()) return;
     setLoading(true);
     try {
@@ -47,11 +55,19 @@ export default function InterviewSessionPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [question, answer, fetchQuestion]);
 
-  const handleEnd = () => {
+  const handleEnd = useCallback(() => {
     if (sessionId) navigate(`/interview/report/${sessionId}`);
-  };
+  }, [sessionId, navigate]);
+
+  if (fetchError) {
+    return (
+      <PageTransition>
+        <ErrorFallback title="Failed to Load Question" message="We couldn't load the interview question." onRetry={fetchQuestion} />
+      </PageTransition>
+    );
+  }
 
   return (
     <PageTransition>
@@ -61,7 +77,7 @@ export default function InterviewSessionPage() {
             <h1 className="font-display text-3xl font-bold">Interview Session</h1>
             <p className="text-muted-foreground">Question {questionCount}</p>
           </div>
-          <Button variant="outline" onClick={handleEnd}>End Interview</Button>
+          <Button variant="outline" onClick={handleEnd} aria-label="End interview session">End Interview</Button>
         </div>
 
         {question && (
@@ -74,8 +90,9 @@ export default function InterviewSessionPage() {
               onChange={(e) => setAnswer(e.target.value)}
               placeholder="Type your answer..."
               className="min-h-[150px] bg-secondary/30"
+              aria-label="Your answer"
             />
-            <Button variant="gradient" className="w-full" onClick={handleSubmit} disabled={loading || !answer.trim()}>
+            <Button variant="gradient" className="w-full" onClick={handleSubmit} disabled={loading || !answer.trim()} aria-label="Submit answer">
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
               Submit Answer
             </Button>

@@ -19,7 +19,7 @@ export default function ProfilePage() {
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card glass-card-hover rounded-2xl p-8 space-y-6">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-accent/20">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-accent/20" aria-hidden="true">
               <User className="h-8 w-8 text-primary" />
             </div>
             <div>
@@ -28,23 +28,23 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="space-y-4 border-t border-border pt-6">
+          <dl className="space-y-4 border-t border-border pt-6">
             <div className="flex items-center gap-3 text-sm">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Email:</span>
-              <span className="text-foreground">{user.email}</span>
+              <Mail className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <dt className="text-muted-foreground">Email:</dt>
+              <dd className="text-foreground">{user.email}</dd>
             </div>
             <div className="flex items-center gap-3 text-sm">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Joined:</span>
-              <span className="text-foreground">{new Date(user.created_at).toLocaleDateString()}</span>
+              <Calendar className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <dt className="text-muted-foreground">Joined:</dt>
+              <dd className="text-foreground">{new Date(user.created_at).toLocaleDateString()}</dd>
             </div>
             <div className="flex items-center gap-3 text-sm">
-              <Shield className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Account:</span>
-              <span className="text-foreground">Active</span>
+              <Shield className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <dt className="text-muted-foreground">Account:</dt>
+              <dd className="text-foreground">Active</dd>
             </div>
-          </div>
+          </dl>
         </motion.div>
       </div>
     </PageTransition>
