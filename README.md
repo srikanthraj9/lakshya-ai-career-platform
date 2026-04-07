@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Welcome to your Lovable project
 
 ## Project info
@@ -71,3 +72,7 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+=======
+# lakshya-ai-career-platform
+LakshyaAI is an AI-powered resume intelligence platform that analyzes resumes, calculates ATS scores, identifies skill gaps, and provides personalized career recommendations using NLP and vector embeddings.
+>>>>>>> 2f1bb8021ac12bb58ba05eac36d064714da0f8aa
