@@ -1,8 +1,8 @@
 import api from "./api";
-import type { JobRecommendation } from "@/types";
+import type { JobRecommendationsResponse } from "@/types";
 
 export const jobsService = {
-  async getRecommendations(resumeId: string): Promise<JobRecommendation[]> {
+  async getRecommendations(resumeId: string): Promise<JobRecommendationsResponse> {
     const res = await api.get(`/jobs/recommend/${resumeId}`);
     return res.data;
   },

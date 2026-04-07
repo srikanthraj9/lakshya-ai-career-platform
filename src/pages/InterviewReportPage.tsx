@@ -1,9 +1,10 @@
+import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { interviewService } from "@/services/interview";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
-import { Award, MessageSquare, Shield, CheckCircle, XCircle } from "lucide-react";
+import { Award, MessageSquare, Shield, CheckCircle, Trophy, XCircle } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { ErrorFallback } from "@/components/ErrorFallback";
@@ -17,11 +18,27 @@ export default function InterviewReportPage() {
     retry: 2,
   });
 
+  useEffect(() => {
+    if (!report) {
+      return;
+    }
+    localStorage.setItem("lakshya:interview-meta", JSON.stringify({
+      session_id: report.session_id,
+      role: report.role,
+      difficulty: report.difficulty,
+      overall_score: report.overall_score,
+      questions_answered: report.questions_answered,
+      updated_at: new Date().toISOString(),
+      summary: report.summary,
+    }));
+  }, [report]);
+
   if (isLoading) return <div className="space-y-4" role="status" aria-label="Loading report">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>;
   if (isError) return <ErrorFallback title="Report Load Failed" message="We couldn't load this interview report." onRetry={() => refetch()} />;
   if (!report) return <ErrorFallback title="Report Not Found" message="The requested report does not exist." />;
 
   const scores = [
+    { label: "Overall", value: report.overall_score, icon: Trophy, color: "text-chart-4" },
     { label: "Technical", value: report.technical_score, icon: Award, color: "text-primary" },
     { label: "Communication", value: report.communication_score, icon: MessageSquare, color: "text-accent" },
     { label: "Confidence", value: report.confidence_score, icon: Shield, color: "text-chart-3" },
@@ -32,10 +49,10 @@ export default function InterviewReportPage() {
       <div className="mx-auto max-w-3xl space-y-8">
         <div>
           <h1 className="font-display text-3xl font-bold">Interview Report</h1>
-          <p className="text-muted-foreground">Your AI interview performance breakdown.</p>
+          <p className="text-muted-foreground">{report.summary}</p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3" role="list" aria-label="Interview scores">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" role="list" aria-label="Interview scores">
           {scores.map((s, i) => (
             <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="glass-card glass-card-hover rounded-xl p-6 text-center" role="listitem">
               <s.icon className={`mx-auto mb-2 h-8 w-8 ${s.color}`} aria-hidden="true" />
@@ -43,6 +60,25 @@ export default function InterviewReportPage() {
               <p className="text-sm text-muted-foreground">{s.label}</p>
             </motion.div>
           ))}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-4">
+          <div className="glass-card glass-card-hover rounded-xl p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Role</p>
+            <p className="mt-2 font-medium text-foreground">{report.role}</p>
+          </div>
+          <div className="glass-card glass-card-hover rounded-xl p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Difficulty</p>
+            <p className="mt-2 font-medium text-foreground">{report.difficulty}</p>
+          </div>
+          <div className="glass-card glass-card-hover rounded-xl p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Mode</p>
+            <p className="mt-2 font-medium text-foreground">{report.mode}</p>
+          </div>
+          <div className="glass-card glass-card-hover rounded-xl p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Questions</p>
+            <p className="mt-2 font-medium text-foreground">{report.questions_answered}</p>
+          </div>
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2">

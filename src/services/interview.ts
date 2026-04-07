@@ -1,5 +1,5 @@
 import api from "./api";
-import type { InterviewSession, InterviewQuestion, InterviewReport } from "@/types";
+import type { InterviewNextResponse, InterviewReport, InterviewSession } from "@/types";
 
 export const interviewService = {
   async start(role: string, difficulty: string, mode: string): Promise<InterviewSession> {
@@ -7,13 +7,8 @@ export const interviewService = {
     return res.data;
   },
 
-  async getQuestion(): Promise<InterviewQuestion> {
-    const res = await api.get("/interview/question");
-    return res.data;
-  },
-
-  async submitAnswer(questionId: string, answer: string): Promise<{ status: string }> {
-    const res = await api.post("/interview/answer", { question_id: questionId, answer });
+  async next(sessionId: string, answer: string): Promise<InterviewNextResponse> {
+    const res = await api.post("/interview/next", { session_id: sessionId, answer });
     return res.data;
   },
 

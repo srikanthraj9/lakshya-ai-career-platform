@@ -1,0 +1,56 @@
+{
+  "owner_id": "bbc02319-1821-4eb7-80f7-c2d2c42c08ac",
+  "structured": {
+    "name": "John Doe",
+    "phone": "",
+    "email": "rewrite-debug-4ad9d99f@example.com",
+    "linkedin": "",
+    "github": "",
+    "portfolio": "",
+    "summary": "",
+    "education": [
+      {
+        "college": "",
+        "degree": "",
+        "year": "",
+        "cgpa": ""
+      }
+    ],
+    "experience": [
+      {
+        "role": "",
+        "company": "",
+        "duration": "",
+        "points": [
+          "Built APIs and dashboards."
+        ]
+      }
+    ],
+    "projects": [
+      {
+        "title": "",
+        "duration": "",
+        "points": []
+      }
+    ],
+    "skills": {
+      "programming": [
+        "Python"
+      ],
+      "web": [
+        "FastAPI",
+        "React"
+      ],
+      "cs": [],
+      "databases": [
+        "PostgreSQL"
+      ],
+      "tools": [],
+      "professional": []
+    },
+    "certifications": []
+  },
+  "preview": "Experience\n  • Built APIs and dashboards.\n\nSkills\n- Programming: Python\n- Web: FastAPI, React\n- Databases: PostgreSQL",
+  "tex_file": "resume.tex",
+  "pdf_file": "resume.pdf"
+}

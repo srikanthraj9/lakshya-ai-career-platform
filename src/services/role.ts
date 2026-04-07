@@ -1,9 +1,9 @@
 import api from "./api";
-import type { RoleAlignment } from "@/types";
+import type { RoleAlignmentResponse } from "@/types";
 
 export const roleService = {
-  async alignRole(resumeId: string, role: string): Promise<RoleAlignment> {
-    const res = await api.post(`/roles/align/${resumeId}`, { role });
+  async alignRole(resumeId: string): Promise<RoleAlignmentResponse> {
+    const res = await api.get(`/roles/intelligence/${resumeId}`);
     return res.data;
   },
 };

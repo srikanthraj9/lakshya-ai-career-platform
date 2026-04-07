@@ -1,0 +1,67 @@
+{
+  "owner_id": "cd5ce5b5-461c-4fa8-99d1-bbd7e12c5a61",
+  "structured": {
+    "name": "John Doe",
+    "phone": "+1 555-123-4567",
+    "email": "john.doe@example.com",
+    "linkedin": "linkedin.com/in/johndoe",
+    "github": "github.com/johndoe",
+    "portfolio": "",
+    "summary": "Backend engineer with experience building FastAPI services and PostgreSQL-backed APIs.",
+    "education": [
+      {
+        "college": "State University",
+        "degree": "B.Tech CSE",
+        "year": "2024",
+        "cgpa": "8.7"
+      }
+    ],
+    "experience": [
+      {
+        "role": "Software Engineer",
+        "company": "Acme Corp",
+        "duration": "2023-2025",
+        "points": [
+          "Built REST APIs using Python and FastAPI.",
+          "Improved query performance in PostgreSQL."
+        ]
+      }
+    ],
+    "projects": [
+      {
+        "title": "Resume Intelligence Platform",
+        "duration": "2024",
+        "points": [
+          "Developed AI resume analysis tooling."
+        ]
+      }
+    ],
+    "skills": {
+      "programming": [
+        "Python",
+        "FastAPI",
+        "PostgreSQL"
+      ],
+      "web": [
+        "React"
+      ],
+      "cs": [
+        "SQL"
+      ],
+      "databases": [
+        "PostgreSQL"
+      ],
+      "tools": [
+        "Docker",
+        "Git"
+      ],
+      "professional": []
+    },
+    "certifications": [
+      "AWS Cloud Practitioner"
+    ]
+  },
+  "preview": "Summary\nBackend engineer with experience building FastAPI services and PostgreSQL-backed APIs.\n\nEducation\n- State University | B.Tech CSE | 2024 | CGPA: 8.7\n\nExperience\n- Software Engineer | Acme Corp | 2023-2025\n  • Built REST APIs using Python and FastAPI.\n  • Improved query performance in PostgreSQL.\n\nProjects\n- Resume Intelligence Platform | 2024\n  • Developed AI resume analysis tooling.\n\nSkills\n- Programming: Python, FastAPI, PostgreSQL\n- Web: React\n- Cs: SQL\n- Databases: PostgreSQL\n- Tools: Docker, Git\n\nCertifications\n- AWS Cloud Practitioner",
+  "tex_file": "resume.tex",
+  "pdf_file": "resume.pdf"
+}

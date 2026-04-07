@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { PageTransition } from "@/components/PageTransition";
 import { ErrorFallback } from "@/components/ErrorFallback";
+import { ResumeList } from "@/components/resume/ResumeList";
 import {
   LineChart, Line, BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area,
@@ -195,6 +196,14 @@ export default function DashboardPage() {
             </motion.div>
           ))}
         </div>
+
+        <section className="space-y-4">
+          <div>
+            <h2 className="font-display text-2xl font-semibold">Your Resumes</h2>
+            <p className="text-sm text-muted-foreground">Manage stored resumes and open their analysis.</p>
+          </div>
+          <ResumeList />
+        </section>
       </div>
     </PageTransition>
   );

@@ -1,0 +1,109 @@
+{
+  "owner_id": "4df69024-10bb-4460-9a70-e4fa5774c0f0",
+  "structured": {
+    "name": "UPPALAPATI SRIKANTH",
+    "phone": "+91-8074777427",
+    "email": "srikanthuppalapati09@gmail.com",
+    "linkedin": "",
+    "github": "",
+    "portfolio": "",
+    "summary": "Final-year B.Tech student in Computer Science Engineering with strong foundations in Data Structures, Object-Oriented Programming, and Database Management Systems. Experienced in developing scalable backend services and full-stack web applications using Python, FastAPI, and React. Passionate about software development, system design, and building efficient solutions to real-world problems.",
+    "education": [
+      {
+        "college": "Parul University, Vadodara, Gujarat",
+        "degree": "B.Tech in Computer Science Engineering – Artificial Intelligence",
+        "year": "2022 – 2026",
+        "cgpa": "7.38 / 10"
+      }
+    ],
+    "experience": [
+      {
+        "role": "Python Assistant Trainer",
+        "company": "GamutX",
+        "duration": "Aug 2025 – Nov 2025",
+        "points": [
+          "Delivered technical training on Python programming, focusing on core concepts.",
+          "Guided students in developing automation scripts and building basic REST APIs.",
+          "Assisted in debugging code and applying clean coding principles.",
+          "Introduced Git-based version control workflows."
+        ]
+      }
+    ],
+    "projects": [
+      {
+        "title": "LakshyaAI – Resume Intelligence Platform",
+        "duration": "2026 – Present",
+        "points": [
+          "Developing a platform that analyzes resumes and generates ATS-style feedback.",
+          "Implementing resume parsing and automated skill extraction.",
+          "Designing backend services using FastAPI and REST APIs.",
+          "Building a React dashboard to visualize ATS score insights."
+        ]
+      },
+      {
+        "title": "AI-Powered Portfolio Platform",
+        "duration": "2026",
+        "points": [
+          "Developed a full-stack portfolio platform with secure authentication.",
+          "Implemented JWT authentication and OTP-based email verification.",
+          "Integrated an AI assistant for interactive exploration of projects.",
+          "Built REST APIs and deployed the backend on cloud hosting."
+        ]
+      },
+      {
+        "title": "QuickPrint – Self-Service Printing Kiosk System",
+        "duration": "2025",
+        "points": [
+          "Built a kiosk-based printing system enabling QR-based document uploads.",
+          "Implemented backend job tracking and automated print workflow management.",
+          "Designed dynamic pricing logic for print configuration.",
+          "Developed the system using React, TypeScript, FastAPI, SQLAlchemy, and SQLite."
+        ]
+      }
+    ],
+    "skills": {
+      "programming": [
+        "Python",
+        "SQL"
+      ],
+      "web": [
+        "HTML",
+        "CSS",
+        "React",
+        "FastAPI",
+        "Flask"
+      ],
+      "cs": [
+        "Data Structures",
+        "OOP",
+        "DBMS",
+        "Operating Systems"
+      ],
+      "databases": [
+        "PostgreSQL",
+        "SQLite"
+      ],
+      "tools": [
+        "Git",
+        "GitHub",
+        "VS Code",
+        "PyCharm"
+      ],
+      "professional": [
+        "Communication",
+        "Team Collaboration",
+        "Problem Solving",
+        "Analytical Thinking",
+        "Time Management"
+      ]
+    },
+    "certifications": [
+      "NCC A Certificate (Grade B) – Leadership and Teamwork",
+      "Stock Market Fundamentals Certification",
+      "Participated in Vadodara Hackathon 6.0"
+    ]
+  },
+  "preview": "Summary\nFinal-year B.Tech student in Computer Science Engineering with strong foundations in Data Structures, Object-Oriented Programming, and Database Management Systems. Experienced in developing scalable backend services and full-stack web applications using Python, FastAPI, and React. Passionate about software development, system design, and building efficient solutions to real-world problems.\n\nEducation\n- Parul University, Vadodara, Gujarat | B.Tech in Computer Science Engineering – Artificial Intelligence | 2022 – 2026 | CGPA: 7.38 / 10\n\nExperience\n- Python Assistant Trainer | GamutX | Aug 2025 – Nov 2025\n  • Delivered technical training on Python programming, focusing on core concepts.\n  • Guided students in developing automation scripts and building basic REST APIs.\n  • Assisted in debugging code and applying clean coding principles.\n  • Introduced Git-based version control workflows.\n\nProjects\n- LakshyaAI – Resume Intelligence Platform | 2026 – Present\n  • Developing a platform that analyzes resumes and generates ATS-style feedback.\n  • Implementing resume parsing and automated skill extraction.\n  • Designing backend services using FastAPI and REST APIs.\n  • Building a React dashboard to visualize ATS score insights.\n- AI-Powered Portfolio Platform | 2026\n  • Developed a full-stack portfolio platform with secure authentication.\n  • Implemented JWT authentication and OTP-based email verification.\n  • Integrated an AI assistant for interactive exploration of projects.\n  • Built REST APIs and deployed the backend on cloud hosting.\n- QuickPrint – Self-Service Printing Kiosk System | 2025\n  • Built a kiosk-based printing system enabling QR-based document uploads.\n  • Implemented backend job tracking and automated print workflow management.\n  • Designed dynamic pricing logic for print configuration.\n  • Developed the system using React, TypeScript, FastAPI, SQLAlchemy, and SQLite.\n\nSkills\n- Programming: Python, SQL\n- Web: HTML, CSS, React, FastAPI, Flask\n- Cs: Data Structures, OOP, DBMS, Operating Systems\n- Databases: PostgreSQL, SQLite\n- Tools: Git, GitHub, VS Code, PyCharm\n- Professional: Communication, Team Collaboration, Problem Solving, Analytical Thinking, Time Management\n\nCertifications\n- NCC A Certificate (Grade B) – Leadership and Teamwork\n- Stock Market Fundamentals Certification\n- Participated in Vadodara Hackathon 6.0",
+  "tex_file": "resume.tex",
+  "pdf_file": "resume.pdf"
+}

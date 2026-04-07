@@ -1,0 +1,88 @@
+{
+  "owner_id": "d8db6aa8-1042-4eaf-8443-533ac68eefeb",
+  "structured": {
+    "name": "UPPALAPATI SRIKANTH",
+    "phone": "+91-8074777427",
+    "email": "2203031241354@paruluniversity.ac.in",
+    "linkedin": "https://www.linkedin.com/in/uppalapati-srikanth-476b12348/",
+    "github": "https://github.com/srikanthraj9/Personal_Finance_Dashboard",
+    "portfolio": "",
+    "summary": "Motivated and detail-oriented B.Tech (CSE – AI) student with strong foundations in Python, data analysis, and software development. Experienced in developing automation tools, APIs, and data-driven applications. Passionate about applying technology to solve real-world engineering and analytical problems.",
+    "education": [
+      {
+        "college": "Parul University",
+        "degree": "B.Tech. - CSE - Artificial Intelligence",
+        "year": "2022 - 2026",
+        "cgpa": "7.19 / 10"
+      }
+    ],
+    "experience": [
+      {
+        "role": "Python Assistant Trainer",
+        "company": "GamutX | E-Learning / Edtech",
+        "duration": "15 Aug, 2025 - Present",
+        "points": [
+          "Assisted in training students on Python programming fundamentals and advanced applications.",
+          "Conducted hands-on sessions on Python projects, APIs, and automation tasks.",
+          "Supported development team in creating learning materials and demo projects.",
+          "Collaborated with team members to improve workflows and optimize Python-based tools."
+        ]
+      }
+    ],
+    "projects": [
+      {
+        "title": "Personal Finance Dashboard",
+        "duration": "10 Jul, 2025 - 14 Jul, 2025",
+        "points": [
+          "Developed a Python Tkinter-based desktop application for tracking personal expenses.",
+          "Implemented features for expense management, visualization, and automated email reports."
+        ]
+      },
+      {
+        "title": "Rain Alert System",
+        "duration": "01 Jul, 2025 - 03 Jul, 2025",
+        "points": [
+          "Developed a system using weather APIs to send SMS alerts for rain events.",
+          "Handled API integration and scheduling logic for timely notifications."
+        ]
+      },
+      {
+        "title": "Password Manager Application",
+        "duration": "30 May, 2025 - 01 Jun, 2025",
+        "points": [
+          "Created a desktop password manager with a GUI for secure password storage.",
+          "Implemented random password generation and data retrieval features."
+        ]
+      }
+    ],
+    "skills": {
+      "programming": [
+        "Python"
+      ],
+      "web": [],
+      "cs": [
+        "APIs",
+        "Automation",
+        "Data Analysis"
+      ],
+      "databases": [],
+      "tools": [
+        "Git",
+        "Tkinter"
+      ],
+      "professional": [
+        "Problem Solving",
+        "Team Coordination",
+        "Communication Skills"
+      ]
+    },
+    "certifications": [
+      "NCC A Certificate (Grade B)",
+      "Stock Market Fundamentals Certification",
+      "100 Days of Code: The Complete Python Pro Bootcamp"
+    ]
+  },
+  "preview": "Summary\nMotivated and detail-oriented B.Tech (CSE – AI) student with strong foundations in Python, data analysis, and software development. Experienced in developing automation tools, APIs, and data-driven applications. Passionate about applying technology to solve real-world engineering and analytical problems.\n\nEducation\n- Parul University | B.Tech. - CSE - Artificial Intelligence | 2022 - 2026 | CGPA: 7.19 / 10\n\nExperience\n- Python Assistant Trainer | GamutX | E-Learning / Edtech | 15 Aug, 2025 - Present\n  • Assisted in training students on Python programming fundamentals and advanced applications.\n  • Conducted hands-on sessions on Python projects, APIs, and automation tasks.\n  • Supported development team in creating learning materials and demo projects.\n  • Collaborated with team members to improve workflows and optimize Python-based tools.\n\nProjects\n- Personal Finance Dashboard | 10 Jul, 2025 - 14 Jul, 2025\n  • Developed a Python Tkinter-based desktop application for tracking personal expenses.\n  • Implemented features for expense management, visualization, and automated email reports.\n- Rain Alert System | 01 Jul, 2025 - 03 Jul, 2025\n  • Developed a system using weather APIs to send SMS alerts for rain events.\n  • Handled API integration and scheduling logic for timely notifications.\n- Password Manager Application | 30 May, 2025 - 01 Jun, 2025\n  • Created a desktop password manager with a GUI for secure password storage.\n  • Implemented random password generation and data retrieval features.\n\nSkills\n- Programming: Python\n- Cs: APIs, Automation, Data Analysis\n- Tools: Git, Tkinter\n- Professional: Problem Solving, Team Coordination, Communication Skills\n\nCertifications\n- NCC A Certificate (Grade B)\n- Stock Market Fundamentals Certification\n- 100 Days of Code: The Complete Python Pro Bootcamp",
+  "tex_file": "resume.tex",
+  "pdf_file": "resume.pdf"
+}

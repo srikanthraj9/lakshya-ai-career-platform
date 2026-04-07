@@ -7,11 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Compass, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { getApiErrorMessage } from "@/services/api";
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -19,12 +21,17 @@ export default function RegisterPage() {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setErrorMessage(null);
     try {
       await register(fullName, email, password);
-      toast.success("Account created successfully!");
-      navigate("/dashboard");
-    } catch {
-      toast.error("Registration failed. Please try again.");
+      setErrorMessage(null);
+      toast.success("Account created successfully! Please sign in.");
+      navigate("/login");
+    } catch (error) {
+      const message = getApiErrorMessage(error);
+      setErrorMessage(message);
+      console.error("[Register Error]", { email, message, source: "RegisterPage.handleSubmit" });
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -51,16 +58,21 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label htmlFor="reg-name">Full Name</Label>
-            <Input id="reg-name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="John Doe" required autoComplete="name" aria-required="true" />
+            <Input id="reg-name" value={fullName} onChange={(e) => { setFullName(e.target.value); setErrorMessage(null); }} placeholder="John Doe" required autoComplete="name" aria-required="true" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="reg-email">Email</Label>
-            <Input id="reg-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email" aria-required="true" />
+            <Input id="reg-email" type="email" value={email} onChange={(e) => { setEmail(e.target.value); setErrorMessage(null); }} placeholder="you@example.com" required autoComplete="email" aria-required="true" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="reg-password">Password</Label>
-            <Input id="reg-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required autoComplete="new-password" aria-required="true" />
+            <Input id="reg-password" type="password" value={password} onChange={(e) => { setPassword(e.target.value); setErrorMessage(null); }} placeholder="••••••••" required autoComplete="new-password" aria-required="true" />
           </div>
+          {errorMessage ? (
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {errorMessage}
+            </p>
+          ) : null}
           <Button type="submit" variant="gradient" className="w-full" disabled={loading} aria-label="Create account">
             {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating account...</> : "Create Account"}
           </Button>

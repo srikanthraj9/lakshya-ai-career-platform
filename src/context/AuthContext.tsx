@@ -15,47 +15,84 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(
+    localStorage.getItem("token") || localStorage.getItem("auth_token"),
+  );
   const [isLoading, setIsLoading] = useState(true);
 
+  const storeToken = useCallback((token: string | null) => {
+    if (token) {
+      localStorage.setItem("token", token);
+      localStorage.setItem("auth_token", token);
+      setAuthToken(token);
+      return;
+    }
+
+    localStorage.removeItem("token");
+    localStorage.removeItem("auth_token");
+    setAuthToken(null);
+  }, []);
+
   const fetchUser = useCallback(async () => {
-    const token = localStorage.getItem("auth_token");
+    const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
     if (!token) {
+      setUser(null);
+      setAuthToken(null);
       setIsLoading(false);
       return;
     }
+
+    setAuthToken(token);
     try {
+      console.info("[Auth] Fetching current user");
       const userData = await authService.getMe();
       setUser(userData);
-    } catch {
-      localStorage.removeItem("auth_token");
+      console.info("[Auth] Current user loaded", { userId: userData.id, email: userData.email });
+    } catch (error) {
+      console.error("[Auth] Failed to fetch current user", error);
+      setUser(null);
+      storeToken(null);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [storeToken]);
 
   useEffect(() => {
     fetchUser();
   }, [fetchUser]);
 
   const login = async (email: string, password: string) => {
-    const data = await authService.login(email, password);
-    localStorage.setItem("auth_token", data.access_token);
-    const userData = await authService.getMe();
-    setUser(userData);
+    setIsLoading(true);
+    setUser(null);
+
+    try {
+      const data = await authService.login(email, password);
+      storeToken(data.access_token);
+      console.info("[Auth] Login token received");
+      const userData = await authService.getMe();
+      setUser(userData);
+      console.info("[Auth] Login completed", { userId: userData.id, email: userData.email });
+    } catch (error) {
+      console.error("[Auth] Login failed", error);
+      setUser(null);
+      storeToken(null);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const register = async (fullName: string, email: string, password: string) => {
     await authService.register({ full_name: fullName, email, password });
-    await login(email, password);
   };
 
   const logout = () => {
-    localStorage.removeItem("auth_token");
+    storeToken(null);
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAuthenticated: !!user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, isAuthenticated: !!authToken, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

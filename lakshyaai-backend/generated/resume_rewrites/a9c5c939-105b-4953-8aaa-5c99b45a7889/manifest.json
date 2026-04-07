@@ -1,0 +1,48 @@
+{
+  "owner_id": "d8db6aa8-1042-4eaf-8443-533ac68eefeb",
+  "structured": {
+    "name": "Uppalapati Srikanth",
+    "phone": "",
+    "email": "srikanthuppalapati09@gmail.com",
+    "linkedin": "",
+    "github": "",
+    "portfolio": "",
+    "summary": "B.Tech CSE student skilled in Python, FastAPI, and React.",
+    "education": [
+      {
+        "college": "",
+        "degree": "B.Tech",
+        "year": "",
+        "cgpa": ""
+      }
+    ],
+    "experience": [],
+    "projects": [
+      {
+        "title": "Resume Analyzer",
+        "duration": "",
+        "points": [
+          "Developed a tool to analyze resumes.",
+          "Utilized Python and FastAPI for backend."
+        ]
+      }
+    ],
+    "skills": {
+      "programming": [
+        "Python"
+      ],
+      "web": [
+        "FastAPI",
+        "React"
+      ],
+      "cs": [],
+      "databases": [],
+      "tools": [],
+      "professional": []
+    },
+    "certifications": []
+  },
+  "preview": "Summary\nB.Tech CSE student skilled in Python, FastAPI, and React.\n\nEducation\n- B.Tech\n\nProjects\n- Resume Analyzer\n  • Developed a tool to analyze resumes.\n  • Utilized Python and FastAPI for backend.\n\nSkills\n- Programming: Python\n- Web: FastAPI, React",
+  "tex_file": "resume.tex",
+  "pdf_file": "resume.pdf"
+}

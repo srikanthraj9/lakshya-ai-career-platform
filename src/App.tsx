@@ -16,7 +16,7 @@ const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const ResumeUploadPage = lazy(() => import("./pages/ResumeUploadPage"));
-const ResumeDetailPage = lazy(() => import("./pages/ResumeDetailPage"));
+const ResumeViewPage = lazy(() => import("./pages/ResumeViewPage"));
 const ResumeRewritePage = lazy(() => import("./pages/ResumeRewritePage"));
 const RoleAlignmentPage = lazy(() => import("./pages/RoleAlignmentPage"));
 const RoadmapPage = lazy(() => import("./pages/RoadmapPage"));
@@ -61,7 +61,7 @@ const App = () => (
                 <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/resume/upload" element={<ResumeUploadPage />} />
-                  <Route path="/resume/:id" element={<ResumeDetailPage />} />
+                  <Route path="/resume/:id" element={<ResumeViewPage />} />
                   <Route path="/resume/rewrite" element={<ResumeRewritePage />} />
                   <Route path="/roles/analyze" element={<RoleAlignmentPage />} />
                   <Route path="/roadmap" element={<RoadmapPage />} />

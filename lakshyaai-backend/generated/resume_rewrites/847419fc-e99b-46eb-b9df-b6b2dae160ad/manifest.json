@@ -1,0 +1,52 @@
+{
+  "owner_id": "9c3d6bb6-dfb4-43cc-bdc1-45da51bad06a",
+  "structured": {
+    "name": "Jane Doe",
+    "phone": "",
+    "email": "rewrite-verify-87883fb7@example.com",
+    "linkedin": "",
+    "github": "",
+    "portfolio": "",
+    "summary": "",
+    "education": [
+      {
+        "college": "",
+        "degree": "",
+        "year": "",
+        "cgpa": ""
+      }
+    ],
+    "experience": [
+      {
+        "role": "Full Stack Engineer",
+        "company": "",
+        "duration": "",
+        "points": [
+          "Built APIs and frontend dashboards with measurable impact."
+        ]
+      }
+    ],
+    "projects": [],
+    "skills": {
+      "programming": [
+        "Python"
+      ],
+      "web": [
+        "FastAPI",
+        "React"
+      ],
+      "cs": [],
+      "databases": [
+        "PostgreSQL"
+      ],
+      "tools": [
+        "Docker"
+      ],
+      "professional": []
+    },
+    "certifications": []
+  },
+  "preview": "Experience\n- Full Stack Engineer\n  • Built APIs and frontend dashboards with measurable impact.\n\nSkills\n- Programming: Python\n- Web: FastAPI, React\n- Databases: PostgreSQL\n- Tools: Docker",
+  "tex_file": "resume.tex",
+  "pdf_file": "resume.pdf"
+}

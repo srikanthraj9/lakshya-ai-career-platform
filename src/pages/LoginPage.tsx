@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -7,27 +7,41 @@ import { Label } from "@/components/ui/label";
 import { Compass, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { getApiErrorMessage } from "@/services/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    navigate("/dashboard", { replace: true });
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setErrorMessage(null);
     try {
       await login(email, password);
+      setErrorMessage(null);
       toast.success("Logged in successfully!");
-      navigate("/dashboard");
-    } catch {
-      toast.error("Invalid credentials. Please try again.");
+    } catch (error) {
+      const message = getApiErrorMessage(error);
+      setErrorMessage(message);
+      console.error("[Login Error]", { email, message, source: "LoginPage.handleSubmit" });
+      toast.error(message);
     } finally {
       setLoading(false);
     }
-  }, [email, password, login, navigate]);
+  }, [email, password, login]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -50,12 +64,17 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label htmlFor="login-email">Email</Label>
-            <Input id="login-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email" aria-required="true" />
+            <Input id="login-email" type="email" value={email} onChange={(e) => { setEmail(e.target.value); setErrorMessage(null); }} placeholder="you@example.com" required autoComplete="email" aria-required="true" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="login-password">Password</Label>
-            <Input id="login-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password" aria-required="true" />
+            <Input id="login-password" type="password" value={password} onChange={(e) => { setPassword(e.target.value); setErrorMessage(null); }} placeholder="••••••••" required autoComplete="current-password" aria-required="true" />
           </div>
+          {errorMessage ? (
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {errorMessage}
+            </p>
+          ) : null}
           <Button type="submit" variant="gradient" className="w-full" disabled={loading} aria-label="Sign in">
             {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Signing in...</> : "Sign In"}
           </Button>

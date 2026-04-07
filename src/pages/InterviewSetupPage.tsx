@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { interviewService } from "@/services/interview";
+import { getApiErrorMessage } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,16 +16,20 @@ export default function InterviewSetupPage() {
   const [difficulty, setDifficulty] = useState("medium");
   const [mode, setMode] = useState("text");
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleStart = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setErrorMessage(null);
     try {
       const session = await interviewService.start(role, difficulty, mode);
-      navigate("/interview/session", { state: { sessionId: session.session_id } });
-    } catch {
-      toast.error("Failed to start interview. Please try again.");
+      navigate("/interview/session", { state: { session } });
+    } catch (error) {
+      const message = getApiErrorMessage(error);
+      setErrorMessage(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -52,11 +57,11 @@ export default function InterviewSetupPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="interview-role">Target Role</Label>
-            <Input id="interview-role" value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Backend Engineer" required aria-required="true" />
+            <Input id="interview-role" value={role} onChange={(e) => { setRole(e.target.value); setErrorMessage(null); }} placeholder="e.g. Backend Engineer" required aria-required="true" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="interview-difficulty">Difficulty</Label>
-            <Select value={difficulty} onValueChange={setDifficulty}>
+            <Select value={difficulty} onValueChange={(value) => { setDifficulty(value); setErrorMessage(null); }}>
               <SelectTrigger id="interview-difficulty" aria-label="Select difficulty"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="easy">Easy</SelectItem>
@@ -67,7 +72,7 @@ export default function InterviewSetupPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="interview-mode">Mode</Label>
-            <Select value={mode} onValueChange={setMode}>
+            <Select value={mode} onValueChange={(value) => { setMode(value); setErrorMessage(null); }}>
               <SelectTrigger id="interview-mode" aria-label="Select mode"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="text">Text</SelectItem>
@@ -75,6 +80,11 @@ export default function InterviewSetupPage() {
               </SelectContent>
             </Select>
           </div>
+          {errorMessage ? (
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {errorMessage}
+            </p>
+          ) : null}
           <Button variant="gradient" type="submit" className="w-full" disabled={loading || !role} aria-label="Start interview">
             {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting...</> : "Start Interview"}
           </Button>

@@ -71,18 +71,25 @@ export default function LiveJobsPage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                       <Building2 className="h-5 w-5 text-primary" aria-hidden="true" />
                     </div>
-                    <div className="rounded-full bg-chart-4/15 px-3 py-1 text-xs font-semibold text-chart-4">{job.match_percent}% Match</div>
+                    <div className="rounded-full bg-chart-4/15 px-3 py-1 text-xs font-semibold text-chart-4">{job.job_type || "remote"}</div>
                   </div>
                   <h3 className="font-display font-semibold text-foreground">{job.title}</h3>
                   <p className="text-sm text-muted-foreground">{job.company}</p>
                   <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
                     <MapPin className="h-3 w-3" aria-hidden="true" /> {job.location}
                   </div>
+                  <p className="mt-3 text-sm text-muted-foreground">{job.why}</p>
                   <div className="mt-3 flex flex-wrap gap-1.5" role="list" aria-label="Required skills">
-                    {job.skills.map((s) => <Badge key={s} variant="secondary" className="text-xs" role="listitem">{s}</Badge>)}
+                    {job.skill_tags.map((s) => <Badge key={s} variant="secondary" className="text-xs" role="listitem">{s}</Badge>)}
                   </div>
                 </div>
-                <Button variant="outline" size="sm" className="w-full" aria-label={`Apply for ${job.title} at ${job.company}`}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  aria-label={`Apply for ${job.title} at ${job.company}`}
+                  onClick={() => window.open(job.url, "_blank", "noopener,noreferrer")}
+                >
                   <ExternalLink className="mr-1 h-3 w-3" aria-hidden="true" /> Apply
                 </Button>
               </motion.div>

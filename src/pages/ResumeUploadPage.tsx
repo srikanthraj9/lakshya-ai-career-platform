@@ -6,6 +6,8 @@ import { Upload, FileText, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { PageTransition } from "@/components/PageTransition";
+import { getApiErrorMessage } from "@/services/api";
+import { ResumeReferenceList } from "@/components/resume/ResumeReferenceList";
 
 export default function ResumeUploadPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -24,6 +26,17 @@ export default function ResumeUploadPage() {
 
   const handleUpload = useCallback(async () => {
     if (!file) return;
+    try {
+      const resumes = await resumeService.listResumes();
+      if (resumes.length >= 10) {
+        toast.error("Maximum 10 resumes allowed");
+        return;
+      }
+    } catch (error) {
+      toast.error(getApiErrorMessage(error));
+      return;
+    }
+
     setUploading(true);
     setUploadProgress(0);
 
@@ -41,10 +54,10 @@ export default function ResumeUploadPage() {
       setSuccess(true);
       toast.success("Resume uploaded successfully!");
       setTimeout(() => navigate(`/resume/${resume.id}`), 1500);
-    } catch {
+    } catch (error) {
       clearInterval(progressInterval);
       setUploadProgress(0);
-      toast.error("Upload failed. Please try again.");
+      toast.error(getApiErrorMessage(error));
     } finally {
       setUploading(false);
     }
@@ -97,7 +110,7 @@ export default function ResumeUploadPage() {
           </AnimatePresence>
           <input
             type="file"
-            accept=".pdf,.doc,.docx"
+            accept=".pdf"
             className="absolute inset-0 cursor-pointer opacity-0"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
             aria-label="Choose resume file"
@@ -123,6 +136,8 @@ export default function ResumeUploadPage() {
         <Button variant="gradient" className="w-full" disabled={!file || uploading || success} onClick={handleUpload} aria-label="Upload and analyze resume">
           {uploading ? "Analyzing..." : success ? "Done!" : "Upload & Analyze"}
         </Button>
+
+        <ResumeReferenceList />
       </div>
     </PageTransition>
   );

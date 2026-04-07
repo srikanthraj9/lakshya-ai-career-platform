@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
-import { Briefcase, Building, Percent, Search } from "lucide-react";
+import { Briefcase, Building, ExternalLink, MapPin, Percent, Search } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorFallback } from "@/components/ErrorFallback";
@@ -16,7 +16,7 @@ export default function JobsPage() {
   const [resumeId, setResumeId] = useState("");
   const [searchId, setSearchId] = useState("");
 
-  const { data: jobs, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["jobs", searchId],
     queryFn: () => jobsService.getRecommendations(searchId),
     enabled: !!searchId,
@@ -25,7 +25,8 @@ export default function JobsPage() {
 
   const handleSearch = useCallback(() => setSearchId(resumeId), [resumeId]);
 
-  const jobList = useMemo(() => jobs ?? [], [jobs]);
+  const jobList = useMemo(() => data?.jobs ?? [], [data]);
+  const resumeSkills = useMemo(() => data?.resume_skills ?? [], [data]);
 
   return (
     <PageTransition>
@@ -68,7 +69,16 @@ export default function JobsPage() {
         )}
 
         {jobList.length > 0 && (
-          <div className="grid gap-4 md:grid-cols-2" role="list" aria-label="Recommended jobs">
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {resumeSkills.map((skill) => (
+                <Badge key={skill} variant="outline" className="text-xs">
+                  {skill}
+                </Badge>
+              ))}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2" role="list" aria-label="Recommended jobs">
             {jobList.map((job, i) => (
               <motion.div
                 key={job.id}
@@ -86,18 +96,40 @@ export default function JobsPage() {
                     <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                       <Building className="h-3.5 w-3.5" aria-hidden="true" /> {job.company}
                     </p>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                      <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> {job.location}
+                    </p>
                   </div>
                   <Badge variant="secondary" className="flex items-center gap-1">
-                    <Percent className="h-3 w-3" aria-hidden="true" /> {job.match_percentage}%
+                    <Percent className="h-3 w-3" aria-hidden="true" /> {job.match_score}%
                   </Badge>
                 </div>
-                <div className="flex flex-wrap gap-1.5" role="list" aria-label="Required skills">
-                  {job.required_skills.map((s) => (
+
+                <p className="text-sm text-muted-foreground">{job.why}</p>
+
+                <div className="flex flex-wrap gap-1.5" role="list" aria-label="Matched skills">
+                  {job.matched_skills.map((s) => (
+                    <Badge key={s} variant="secondary" className="text-xs" role="listitem">{s}</Badge>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap gap-1.5" role="list" aria-label="Job tags">
+                  {job.skill_tags.map((s) => (
                     <Badge key={s} variant="outline" className="text-xs" role="listitem">{s}</Badge>
                   ))}
                 </div>
+
+                <Button
+                  variant="gradient"
+                  className="w-full"
+                  onClick={() => window.open(job.url, "_blank", "noopener,noreferrer")}
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Apply Now
+                </Button>
               </motion.div>
             ))}
+            </div>
           </div>
         )}
       </div>
