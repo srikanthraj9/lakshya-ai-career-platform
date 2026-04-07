@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.routes import analytics, auth, copilot, interview, jobs, resume, roadmap, role, users
+from app.api.routes import analytics, auth, copilot, interview, jobs, resume, roadmap, role, users, voice
 
 api_router = APIRouter(prefix="/api")
 
@@ -12,5 +12,6 @@ api_router.include_router(role.router)
 api_router.include_router(roadmap.router)
 api_router.include_router(analytics.router)
 api_router.include_router(interview.router)
+api_router.include_router(voice.router)
 api_router.include_router(jobs.router)
 api_router.include_router(copilot.router)

@@ -2,31 +2,104 @@ import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { jobsService } from "@/services/jobs";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion } from "framer-motion";
 import { Briefcase, Building, ExternalLink, MapPin, Percent, Search } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorFallback } from "@/components/ErrorFallback";
+import { getApiErrorMessage } from "@/services/api";
+
+type StoredResume = {
+  id: string;
+  fileName: string;
+};
+
+const RESUME_ID_KEY = "resumeId";
+const RESUME_FILE_NAME_KEY = "resumeFileName";
+const STORED_RESUMES_KEY = "uploadedResumes";
+
+function readStoredResumes(): StoredResume[] {
+  try {
+    const storedValue = localStorage.getItem(STORED_RESUMES_KEY);
+    if (storedValue) {
+      const parsed = JSON.parse(storedValue);
+      if (Array.isArray(parsed)) {
+        const resumes = parsed.filter(
+          (item): item is StoredResume =>
+            typeof item?.id === "string" &&
+            typeof item?.fileName === "string",
+        );
+        if (resumes.length > 0) {
+          return resumes;
+        }
+      }
+    }
+  } catch {
+    // Fall back to legacy single-resume storage below.
+  }
+
+  const legacyResumeId = localStorage.getItem(RESUME_ID_KEY);
+  const legacyFileName = localStorage.getItem(RESUME_FILE_NAME_KEY);
+  if (legacyResumeId && legacyFileName) {
+    return [{ id: legacyResumeId, fileName: legacyFileName }];
+  }
+
+  return [];
+}
+
+function initialResumeId(): string {
+  const storedResumeId = localStorage.getItem(RESUME_ID_KEY);
+  if (storedResumeId) {
+    return storedResumeId;
+  }
+
+  return readStoredResumes()[0]?.id || "";
+}
 
 export default function JobsPage() {
-  const [resumeId, setResumeId] = useState("");
+  const [storedResumes] = useState<StoredResume[]>(() => readStoredResumes());
+  const [resumeId, setResumeId] = useState(() => initialResumeId());
   const [searchId, setSearchId] = useState("");
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, error, isLoading, isError, refetch } = useQuery({
     queryKey: ["jobs", searchId],
     queryFn: () => jobsService.getRecommendations(searchId),
     enabled: !!searchId,
     retry: 2,
   });
 
-  const handleSearch = useCallback(() => setSearchId(resumeId), [resumeId]);
+  const handleSearch = useCallback(() => {
+    if (!resumeId) {
+      return;
+    }
+    setSearchId(resumeId);
+  }, [resumeId]);
+
+  const handleResumeChange = useCallback((value: string) => {
+    setResumeId(value);
+    localStorage.setItem(RESUME_ID_KEY, value);
+
+    const selectedResume = storedResumes.find((resume) => resume.id === value);
+    if (selectedResume) {
+      localStorage.setItem(RESUME_FILE_NAME_KEY, selectedResume.fileName);
+    }
+  }, [storedResumes]);
+
+  const selectedResume = useMemo(
+    () => storedResumes.find((resume) => resume.id === resumeId) ?? null,
+    [resumeId, storedResumes],
+  );
 
   const jobList = useMemo(() => data?.jobs ?? [], [data]);
   const resumeSkills = useMemo(() => data?.resume_skills ?? [], [data]);
+  const jobsErrorMessage = useMemo(
+    () => (error ? getApiErrorMessage(error) : "Failed to load job recommendations."),
+    [error],
+  );
 
   return (
     <PageTransition>
@@ -38,8 +111,28 @@ export default function JobsPage() {
 
         <div className="flex gap-3 items-end">
           <div className="flex-1 space-y-2">
-            <Label htmlFor="resume-id-input">Resume ID</Label>
-            <Input id="resume-id-input" value={resumeId} onChange={(e) => setResumeId(e.target.value)} placeholder="Enter your resume ID" aria-describedby="resume-id-help" />
+            <Label htmlFor="resume-selector">Resume</Label>
+            <Select value={resumeId} onValueChange={handleResumeChange} disabled={storedResumes.length === 0}>
+              <SelectTrigger id="resume-selector" aria-describedby="resume-id-help">
+                <SelectValue placeholder="Select uploaded resume" />
+              </SelectTrigger>
+              <SelectContent>
+                {storedResumes.map((resume) => (
+                  <SelectItem key={resume.id} value={resume.id}>
+                    {resume.fileName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedResume ? (
+              <p id="resume-id-help" className="text-xs text-muted-foreground">
+                Selected: {selectedResume.fileName}
+              </p>
+            ) : (
+              <p id="resume-id-help" className="text-xs text-muted-foreground">
+                Upload a resume to enable job recommendations.
+              </p>
+            )}
           </div>
           <Button variant="gradient" onClick={handleSearch} disabled={!resumeId || isLoading} aria-label="Find matching jobs">
             Find Jobs
@@ -48,7 +141,7 @@ export default function JobsPage() {
 
         {isLoading && <div className="grid gap-4 md:grid-cols-2" role="status" aria-label="Loading jobs">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}</div>}
 
-        {isError && <ErrorFallback title="Jobs Load Failed" message="Failed to load job recommendations." onRetry={() => refetch()} />}
+        {isError && <ErrorFallback title="Jobs Load Failed" message={jobsErrorMessage} onRetry={() => refetch()} />}
 
         {!searchId && !isLoading && !isError && (
           <EmptyState

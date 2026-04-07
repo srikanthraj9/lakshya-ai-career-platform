@@ -9,6 +9,37 @@ import { PageTransition } from "@/components/PageTransition";
 import { getApiErrorMessage } from "@/services/api";
 import { ResumeReferenceList } from "@/components/resume/ResumeReferenceList";
 
+type StoredResume = {
+  id: string;
+  fileName: string;
+};
+
+const RESUME_ID_KEY = "resumeId";
+const RESUME_FILE_NAME_KEY = "resumeFileName";
+const STORED_RESUMES_KEY = "uploadedResumes";
+
+function readStoredResumes(): StoredResume[] {
+  try {
+    const storedValue = localStorage.getItem(STORED_RESUMES_KEY);
+    if (!storedValue) {
+      return [];
+    }
+
+    const parsed = JSON.parse(storedValue);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter(
+      (item): item is StoredResume =>
+        typeof item?.id === "string" &&
+        typeof item?.fileName === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
 export default function ResumeUploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -49,6 +80,14 @@ export default function ResumeUploadPage() {
 
     try {
       const resume = await resumeService.upload(file);
+      const nextStoredResumes = [
+        { id: resume.id, fileName: file.name },
+        ...readStoredResumes().filter((item) => item.id !== resume.id),
+      ].slice(0, 10);
+
+      localStorage.setItem(STORED_RESUMES_KEY, JSON.stringify(nextStoredResumes));
+      localStorage.setItem(RESUME_ID_KEY, resume.id);
+      localStorage.setItem(RESUME_FILE_NAME_KEY, file.name);
       clearInterval(progressInterval);
       setUploadProgress(100);
       setSuccess(true);

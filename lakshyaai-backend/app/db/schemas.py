@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
@@ -415,6 +415,40 @@ class InterviewReportResponse(BaseModel):
     summary: str = ""
 
 
+class VoiceScoreResponse(BaseModel):
+    technical: int
+    communication: int
+    confidence: int
+
+
+class VoiceAnswerResponse(BaseModel):
+    transcript: str
+    scores: VoiceScoreResponse
+    feedback: str
+
+
+class VoiceQuestionResponse(BaseModel):
+    role: str
+    question: str
+
+
+class VoiceChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def normalize_fields(self) -> "VoiceChatMessage":
+        self.content = self.content.strip()
+        if not self.content:
+            raise ValueError("content is required")
+        return self
+
+
+class VoiceChatResponse(BaseModel):
+    transcript: str
+    reply: str
+
+
 class JobListingResponse(BaseModel):
     id: str
     title: str
@@ -436,43 +470,21 @@ class JobRecommendationResponse(BaseModel):
     jobs: list[JobListingResponse] = Field(default_factory=list)
 
 
-class CopilotContextProfile(BaseModel):
-    resume_name: str = ""
-    target_role: str = ""
-    focus_skills: list[str] = Field(default_factory=list)
-    notes: str = ""
-
-
-class CopilotChatRequest(BaseModel):
-    resume_id: UUID
-    user_id: Optional[UUID] = None
-    message: str = Field(min_length=1)
-    context_profile: Optional[CopilotContextProfile] = None
+class CopilotChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1)
 
     @model_validator(mode="after")
-    def normalize_fields(self) -> "CopilotChatRequest":
-        self.message = self.message.strip()
-        if not self.message:
-            raise ValueError("message is required")
+    def normalize_fields(self) -> "CopilotChatMessage":
+        self.content = self.content.strip()
+        if not self.content:
+            raise ValueError("content is required")
         return self
 
 
-class CopilotResource(BaseModel):
-    title: str
-    url: str = ""
-    reason: str = ""
-
-
-class CopilotSection(BaseModel):
-    title: str
-    body: str = ""
-    items: list[str] = Field(default_factory=list)
+class CopilotChatRequest(BaseModel):
+    messages: list[CopilotChatMessage] = Field(min_length=1)
 
 
 class CopilotResponse(BaseModel):
     reply: str
-    intent: str = "general_advice"
-    suggestions: list[str] = Field(default_factory=list)
-    optional_sections: dict[str, CopilotSection] = Field(default_factory=dict)
-    resources: list[CopilotResource] = Field(default_factory=list)
-    memory_turns: int = 0

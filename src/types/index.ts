@@ -229,37 +229,18 @@ export interface JobRecommendationsResponse {
   jobs: JobRecommendation[];
 }
 
-export interface CopilotMessage {
-  id: string;
+export interface CopilotChatMessage {
   role: "user" | "assistant";
   content: string;
+}
+
+export interface CopilotMessage extends CopilotChatMessage {
+  id: string;
   timestamp: Date;
-  intent?: string;
-  sections?: Record<string, CopilotSection>;
-  resources?: CopilotResource[];
-  suggestions?: string[];
-  memory_turns?: number;
-}
-
-export interface CopilotResource {
-  title: string;
-  url: string;
-  reason: string;
-}
-
-export interface CopilotSection {
-  title: string;
-  body: string;
-  items: string[];
 }
 
 export interface CopilotResponse {
   reply: string;
-  intent: string;
-  suggestions: string[];
-  optional_sections: Record<string, CopilotSection>;
-  resources: CopilotResource[];
-  memory_turns: number;
 }
 
 export interface RoadmapStep {
@@ -339,6 +320,21 @@ export interface VoiceAnswerResponse {
     confidence: number;
   };
   feedback: string;
+}
+
+export interface VoiceQuestionResponse {
+  role: string;
+  question: string;
+}
+
+export interface VoiceChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface VoiceChatResponse {
+  transcript: string;
+  reply: string;
 }
 
 export interface LiveJob {

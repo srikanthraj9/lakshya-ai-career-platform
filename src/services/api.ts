@@ -1,9 +1,13 @@
 import axios from "axios";
 
-const DEFAULT_API_BASE_URL = "";
+const DEFAULT_API_BASE_URL = "http://127.0.0.1:10000/api";
 const HEALTH_CHECK_TTL_MS = 10000;
 
 function resolveApiBaseUrl(): string {
+  if (import.meta.env.DEV) {
+    return DEFAULT_API_BASE_URL;
+  }
+
   const explicitBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
   if (explicitBaseUrl) {
     return explicitBaseUrl.replace(/\/+$/, "");

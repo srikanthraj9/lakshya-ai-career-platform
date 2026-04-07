@@ -131,6 +131,25 @@ export default function RoadmapPage() {
     setExpandedStep(0);
   }, [roadmap, storageKey]);
 
+  const totalWeeks = useMemo(
+    () =>
+      (Array.isArray(roadmap) ? roadmap : []).reduce(
+        (total, step) => total + parseDurationToWeeks(step?.duration || ""),
+        0
+      ),
+    [roadmap],
+  );
+
+  const completionPercent = roadmap.length
+    ? Math.round((completedSteps.length / roadmap.length) * 100)
+    : 0;
+
+  const completedCount = completedSteps.length;
+
+  const summaryHeadline = role.trim()
+    ? `You can become a ${role.trim()} in about ${Math.max(totalWeeks, 1)} weeks`
+    : "Generate an AI roadmap for your next role";
+
   useEffect(() => {
     if (!roadmap.length) {
       return;
@@ -146,44 +165,45 @@ export default function RoadmapPage() {
     }));
   }, [completedSteps, completionPercent, experience, roadmap.length, role, storageKey]);
 
-  const mutation = useMutation({
-    mutationFn: () => roadmapService.generate({
-      target_role: role,
-      experience_level: experience,
-    }),
-    onSuccess: (data) => {
-      setRoadmap(data.roadmap);
-      setErrorMessage(null);
-      localStorage.setItem(ROADMAP_META_KEY, JSON.stringify({
-        role,
-        experience,
-        progress: 0,
-        completed_count: 0,
-        total_count: data.roadmap.length,
-        updated_at: new Date().toISOString(),
-      }));
-      toast.success("Roadmap generated");
-    },
-    onError: (error) => {
-      const message = getApiErrorMessage(error);
-      setRoadmap([]);
-      setCompletedSteps([]);
-      setExpandedStep(null);
-      setErrorMessage(message);
-      toast.error(message);
-    },
-  });
+const mutation = useMutation({
+  mutationFn: () => roadmapService.generate({
+    target_role: role,
+    experience_level: experience,
+  }),
 
-  const totalWeeks = useMemo(
-    () => roadmap.reduce((total, step) => total + parseDurationToWeeks(step.duration), 0),
-    [roadmap],
-  );
-  const completionPercent = roadmap.length ? Math.round((completedSteps.length / roadmap.length) * 100) : 0;
-  const completedCount = completedSteps.length;
+  onSuccess: (data) => {
+    console.log("API RESPONSE:", data);
 
-  const summaryHeadline = role.trim()
-    ? `You can become a ${role.trim()} in about ${Math.max(totalWeeks, 1)} weeks`
-    : "Generate an AI roadmap for your next role";
+    const roadmapData = data?.roadmap || data?.data?.roadmap || [];
+
+    if (!Array.isArray(roadmapData)) {
+      throw new Error("Invalid roadmap format");
+    }
+
+    setRoadmap(roadmapData);
+
+    setErrorMessage(null);
+    localStorage.setItem(ROADMAP_META_KEY, JSON.stringify({
+      role,
+      experience,
+      progress: 0,
+      completed_count: 0,
+      total_count: roadmapData.length,
+      updated_at: new Date().toISOString(),
+    }));
+
+    toast.success("Roadmap generated");
+  },
+
+  onError: (error) => {
+    const message = getApiErrorMessage(error);
+    setRoadmap([]);
+    setCompletedSteps([]);
+    setExpandedStep(null);
+    setErrorMessage(message);
+    toast.error(message);
+  },
+});
 
   return (
     <PageTransition>
@@ -347,10 +367,10 @@ export default function RoadmapPage() {
                 <div className="absolute left-[1.55rem] top-4 bottom-4 w-px bg-gradient-to-b from-primary/80 via-accent/60 to-transparent" aria-hidden="true" />
                 <div className="space-y-5">
                   {roadmap.map((stage, index) => {
-                    const Icon = stepIcon(stage.step);
+                    const Icon = stepIcon(stage?.step || "");
                     const isExpanded = expandedStep === index;
                     const isCompleted = completedSteps.includes(index);
-                    const firstResource = stage.resources[0];
+                    const firstResource = stage?.resources?.[0];
 
                     return (
                       <motion.div
@@ -445,7 +465,7 @@ export default function RoadmapPage() {
                                       <p className="text-sm font-medium text-foreground">Recommended Resources</p>
                                     </div>
                                     <div className="grid gap-3 md:grid-cols-2">
-                                      {stage.resources.map((resource) => (
+                                      {stage?.resources?.map((resource) => (
                                         <a
                                           key={resource}
                                           href={resource}
