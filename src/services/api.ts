@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const DEFAULT_API_BASE_URL = "http://127.0.0.1:8001/api";
+const DEFAULT_API_BASE_URL = "";
 const HEALTH_CHECK_TTL_MS = 10000;
 
 function resolveApiBaseUrl(): string {

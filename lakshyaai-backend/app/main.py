@@ -50,15 +50,8 @@ def create_tables():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "http://localhost:8080",
-        "http://127.0.0.1:8080",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],   # 🔥 TEMP FIX
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -78,7 +71,7 @@ async def health_check():
     return {
         "status": "ok",
         "service": "lakshyaai-backend",
-        "port": 8001,
+        "port": 10000,
     }
 
 
@@ -133,4 +126,4 @@ app.include_router(api_router)
 
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8001, reload=False)
+    uvicorn.run("app.main:app", host="127.0.0.1", port=10000, reload=False)
