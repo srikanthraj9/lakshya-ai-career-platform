@@ -1,78 +1,77 @@
-<<<<<<< HEAD
-# Welcome to your Lovable project
+# AI-Powered Resume Intelligence Platform
 
-## Project info
+An AI-powered resume intelligence platform that analyzes resumes, evaluates ATS compatibility, identifies skill gaps, and provides personalized career recommendations using Natural Language Processing (NLP), vector embeddings, and modern full-stack technologies.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## 🚀 Features
 
-## How can I edit this code?
+- Resume Upload & Parsing
+- ATS Score Analysis
+- Skill Extraction
+- Skill Gap Identification
+- Role Matching
+- AI-Powered Resume Suggestions
+- Mock Interview Support
+- Career Analytics Dashboard
+- Secure User Authentication
 
-There are several ways of editing your application.
+## 🛠️ Tech Stack
 
-**Use Lovable**
+### Frontend
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- shadcn/ui
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### Backend
+- Python
+- FastAPI
+- REST APIs
 
-Changes made via Lovable will be committed automatically to this repo.
+### Database
+- PostgreSQL
 
-**Use your preferred IDE**
+### AI & NLP
+- NLP
+- Vector Embeddings
+- AI APIs
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Tools
+- Git
+- GitHub
+- VS Code
+- Postman
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 📦 Installation
 
-Follow these steps:
+Clone the repository:
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
+```bash
 git clone <YOUR_GIT_URL>
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+Navigate to the project directory:
 
-# Step 3: Install the necessary dependencies.
-npm i
+```bash
+cd <PROJECT_NAME>
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run the development server:
+
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## 🎯 Project Objective
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+The platform helps job seekers improve their resumes by analyzing ATS compatibility, extracting technical skills, identifying missing competencies, and providing AI-driven recommendations to increase their chances of success in recruitment processes.
 
-**Use GitHub Codespaces**
+## 📄 License
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
-=======
-# lakshya-ai-career-platform
-LakshyaAI is an AI-powered resume intelligence platform that analyzes resumes, calculates ATS scores, identifies skill gaps, and provides personalized career recommendations using NLP and vector embeddings.
->>>>>>> 2f1bb8021ac12bb58ba05eac36d064714da0f8aa
+This project is intended for educational and portfolio purposes.
