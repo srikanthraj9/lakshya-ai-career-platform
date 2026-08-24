@@ -1,4 +1,6 @@
-import axios from "axios";
+import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
+import { telemetryService } from "./telemetryService";
+import { sessionService } from "./sessionService";
 
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:10000/api";
 const HEALTH_CHECK_TTL_MS = 10000;
@@ -46,7 +48,6 @@ function normalizeRequestUrl(url?: string): string | undefined {
 }
 
 const API_BASE_URL = normalizeApiBaseUrl();
-const BACKEND_ORIGIN = new URL(API_BASE_URL).origin;
 const HEALTH_CHECK_URL = `${API_BASE_URL}/health`;
 
 let lastHealthCheckAt = 0;
@@ -68,9 +69,6 @@ export const api = axios.create({
   },
   timeout: 15000,
 });
-
-console.log("API BASE URL:", API_BASE_URL);
-console.log("API HEALTH CHECK URL:", HEALTH_CHECK_URL);
 
 async function ensureBackendReachable(): Promise<void> {
   const now = Date.now();
@@ -125,74 +123,80 @@ function resolveErrorUrl(error: unknown): string {
   return API_BASE_URL;
 }
 
-api.interceptors.request.use(async (config) => {
+api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   config.baseURL = normalizeApiBaseUrl(config.baseURL);
   config.url = normalizeRequestUrl(config.url);
 
   void ensureBackendReachableSoft();
 
-  const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
+  const token = sessionService.getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  const simToken = typeof window !== "undefined" ? sessionStorage.getItem("simulation_token") : null;
+  if (simToken) {
+    config.headers["X-Simulation-Token"] = simToken;
   }
 
   if (!config.headers["Content-Type"] && !(config.data instanceof FormData)) {
     config.headers["Content-Type"] = "application/json";
   }
 
-  const resolvedUrl = `${config.baseURL}${config.url || ""}`;
-  console.info("[API Request]", {
-    method: config.method?.toUpperCase(),
-    url: resolvedUrl,
-  });
-
   return config;
 });
 
 api.interceptors.response.use(
   (response) => {
-    console.log("[API Response]", {
-      status: response.status,
-      url: `${response.config.baseURL || API_BASE_URL}${normalizeRequestUrl(response.config.url) || ""}`,
-      data: response.data,
-    });
     return response;
   },
-  (error) => {
+  (error: AxiosError<ApiErrorPayload>) => {
     const status = error.response?.status;
-    const resolvedUrl = `${error.config?.baseURL || API_BASE_URL}${normalizeRequestUrl(error.config?.url) || ""}`;
+    const requestUrl = error.config?.url || "";
+    const resolvedUrl = `${error.config?.baseURL || API_BASE_URL}${normalizeRequestUrl(requestUrl) || ""}`;
 
     if (!error.response) {
-      console.error("[API Network Error]", {
+      telemetryService.error("API_ERROR", "Network or CORS error connecting to backend", {
         url: resolvedUrl,
         message: error.message,
-        source: "network_or_cors",
       });
     } else {
-      console.error("[API Error]", {
+      telemetryService.log("API_ERROR", `HTTP ${status} from API`, {
         status,
         url: resolvedUrl,
         data: error.response.data,
-        source: "http_response",
       });
     }
 
+    // Handle 401 Unauthorized
     if (status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("auth_token");
-      if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
+      const isAuthEndpoint =
+        requestUrl.includes("/auth/login") ||
+        requestUrl.includes("/auth/register") ||
+        requestUrl.includes("/auth/verify-email");
+
+      if (!isAuthEndpoint) {
+        telemetryService.error("AUTH_ERROR", "Unauthorized API access, clearing session", {
+          url: resolvedUrl,
+        });
+        sessionService.clearSession();
+
+        const publicPaths = ["/login", "/register", "/verify-email", "/auth/callback"];
+        const currentPath = window.location.pathname;
+        if (!publicPaths.some((p) => currentPath.startsWith(p))) {
+          window.location.href = "/login";
+        }
       }
     }
 
     return Promise.reject(error);
-  },
+  }
 );
 
 export function getApiErrorMessage(error: unknown): string {
   if (axios.isAxiosError<ApiErrorPayload>(error)) {
     if (!error.response) {
-      return `Network request failed for ${resolveErrorUrl(error)}. The backend health check is not used to block requests anymore, so inspect browser Network/CORS details and the failing API route.`;
+      return `Network request failed for ${resolveErrorUrl(error)}. Inspect backend health and network connection.`;
     }
 
     const status = error.response?.status;

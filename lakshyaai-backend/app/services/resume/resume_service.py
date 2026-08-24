@@ -199,6 +199,9 @@ class ResumeService:
         original_filename: str,
         parsed_text: str,
         job_description: str = "",
+        file_path: str | None = None,
+        file_size: int | None = None,
+        mime_type: str = "application/pdf",
     ) -> dict:
         cleaned_text = parsed_text.strip()
         if not cleaned_text:
@@ -216,6 +219,9 @@ class ResumeService:
                 user_id=user.id,
                 original_filename=original_filename,
                 file_name=original_filename,
+                file_path=file_path,
+                file_size=file_size,
+                mime_type=mime_type,
                 parsed_text=cleaned_text,
                 extracted_text=cleaned_text,
                 ats_score=ats_analysis["score"],
@@ -247,13 +253,27 @@ class ResumeService:
         file_bytes: bytes,
         job_description: str = "",
     ) -> dict:
+        from app.services.storage.file_storage import FileStorageService
+        import uuid
+
         parsed_text = cls.parse_pdf(file_bytes)
+        temp_resume_id = uuid.uuid4()
+        file_path, file_size = FileStorageService.save_resume_file(
+            user_id=user.id,
+            resume_id=temp_resume_id,
+            filename=filename,
+            file_bytes=file_bytes,
+        )
+
         return cls.create_resume(
             db,
             user=user,
             original_filename=filename,
             parsed_text=parsed_text,
             job_description=job_description,
+            file_path=file_path,
+            file_size=file_size,
+            mime_type="application/pdf",
         )
 
     @classmethod

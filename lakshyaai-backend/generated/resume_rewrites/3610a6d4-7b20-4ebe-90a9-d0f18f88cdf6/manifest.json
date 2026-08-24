@@ -1,0 +1,34 @@
+{
+  "owner_id": "c1678e9c-b00e-4e96-bbec-a6851346c108",
+  "structured": {
+    "name": "Principal Architect",
+    "phone": "",
+    "email": "truth_candidate_04423dc5@example.com",
+    "linkedin": "",
+    "github": "",
+    "portfolio": "",
+    "summary": "",
+    "education": [],
+    "experience": [],
+    "projects": [],
+    "skills": {
+      "programming": [
+        "python"
+      ],
+      "web": [
+        "fastapi"
+      ],
+      "cs": [],
+      "databases": [],
+      "tools": [
+        "kubernetes",
+        "pytorch"
+      ],
+      "professional": []
+    },
+    "certifications": []
+  },
+  "preview": "Skills\n- Programming: python\n- Web: fastapi\n- Tools: kubernetes, pytorch",
+  "tex_file": "resume.tex",
+  "pdf_file": "resume.pdf"
+}

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Annotated
+from typing import Annotated, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import ValidationException
+from app.core.exceptions import NotFoundException, ValidationException
 from app.core.dependencies import get_current_user
 from app.db import models
 from app.db.database import get_db
@@ -18,6 +18,7 @@ from app.db.schemas import (
     ResumeFeedbackResponse,
     ResumeListItemResponse,
     ResumeResponse,
+    ResumeRewriteListItem,
     ResumeRewriteRequest,
     ResumeRewriteResponse,
     ResumeSelectorItem,
@@ -26,13 +27,18 @@ from app.db.schemas import (
 from app.services.resume.latex_compiler import compile_latex_to_pdf
 from app.services.resume.rewrite_storage import ResumeRewriteStorage
 from app.services.resume.resume_service import ResumeService
+from app.services.storage.file_storage import FileStorageService
 
 router = APIRouter(prefix="/resumes", tags=["Resumes"])
 rewrite_router = APIRouter(prefix="/resume", tags=["Resume Rewrite"])
 logger = logging.getLogger("lakshyaai.resume_rewrite")
 
 
-def _rewrite_response_payload(request: ResumeRewriteRequest, current_user: models.User) -> dict[str, str | dict]:
+def _rewrite_response_payload(
+    request: ResumeRewriteRequest,
+    current_user: models.User,
+    db: Session | None = None,
+) -> dict[str, str | dict]:
     try:
         logger.info("Resume rewrite request received user_id=%s text_length=%s", current_user.id, len(request.text))
         logger.info("Received text preview: %s", request.text[:100])
@@ -55,6 +61,25 @@ def _rewrite_response_payload(request: ResumeRewriteRequest, current_user: model
             preview=result["rewritten"],
         )
         logger.info("Resume rewrite stored user_id=%s document_id=%s", current_user.id, document_id)
+
+        # Persist in PostgreSQL
+        if db is not None:
+            try:
+                rewrite_record = models.ResumeRewrite(
+                    id=UUID(document_id),
+                    user_id=current_user.id,
+                    title="Optimized Resume",
+                    latex_content=result["latex"],
+                    preview_text=result.get("rewritten", ""),
+                    structured_data=result.get("structured", {}),
+                    pdf_path=f"/api/resume/rewrite/{document_id}/pdf",
+                    tex_path=f"/api/resume/rewrite/{document_id}/tex",
+                )
+                db.add(rewrite_record)
+                db.commit()
+            except Exception as e:
+                logger.warning("Could not persist ResumeRewrite metadata: %s", e)
+                db.rollback()
 
         return {
             **result,
@@ -85,6 +110,7 @@ def create_resume(
 
 
 @router.post("/upload", response_model=ResumeResponse)
+@rewrite_router.post("/upload", response_model=ResumeResponse)
 async def upload_resume(
     file: UploadFile = File(...),
     job_description: Annotated[str | None, Form()] = None,
@@ -94,11 +120,12 @@ async def upload_resume(
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise ValidationException("Only PDF files are supported")
 
+    file_bytes = await file.read()
     return ResumeService.create_resume_from_pdf(
         db,
         user=current_user,
         filename=file.filename,
-        file_bytes=await file.read(),
+        file_bytes=file_bytes,
         job_description=job_description or "",
     )
 
@@ -139,12 +166,45 @@ def find_similar_resumes(
     return ResumeService.find_similar_resumes(db, resume_id, current_user.id, limit=limit)
 
 
+@router.get("/{resume_id}/file")
+@router.get("/{resume_id}/download")
+def download_original_resume(
+    resume_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    resume = (
+        db.query(models.Resume)
+        .filter(
+            models.Resume.id == resume_id,
+            models.Resume.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    if not resume.file_path:
+        raise HTTPException(status_code=404, detail="Original resume file not found on storage")
+
+    path = FileStorageService.get_resume_path(resume.file_path)
+    if not path:
+        raise HTTPException(status_code=404, detail="Resume file missing from storage directory")
+
+    return FileResponse(
+        path,
+        media_type=resume.mime_type or "application/pdf",
+        filename=resume.original_filename or "resume.pdf",
+    )
+
+
 @router.post("/rewrite", response_model=ResumeRewriteResponse)
 async def rewrite_resume(
     request: ResumeRewriteRequest,
+    db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return _rewrite_response_payload(request, current_user)
+    return _rewrite_response_payload(request, current_user, db)
 
 
 @router.post("/rewrite/pdf")
@@ -169,9 +229,33 @@ async def rewrite_resume_pdf(
 @rewrite_router.post("/rewrite", response_model=ResumeRewriteResponse)
 async def rewrite_resume_alias(
     request: ResumeRewriteRequest,
+    db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return _rewrite_response_payload(request, current_user)
+    return _rewrite_response_payload(request, current_user, db)
+
+
+@rewrite_router.get("/rewrites", response_model=List[ResumeRewriteListItem])
+def list_user_rewrites(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    rewrites = (
+        db.query(models.ResumeRewrite)
+        .filter(models.ResumeRewrite.user_id == current_user.id)
+        .order_by(models.ResumeRewrite.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "title": r.title,
+            "pdf_url": r.pdf_path or f"/api/resume/rewrite/{r.id}/pdf",
+            "tex_url": r.tex_path or f"/api/resume/rewrite/{r.id}/tex",
+            "created_at": r.created_at,
+        }
+        for r in rewrites
+    ]
 
 
 @rewrite_router.get("/rewrite/{document_id}/pdf")

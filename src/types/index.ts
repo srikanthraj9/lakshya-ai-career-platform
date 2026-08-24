@@ -2,6 +2,13 @@ export interface User {
   id: string;
   full_name: string;
   email: string;
+  role?: "user" | "admin" | "super_admin";
+  is_active?: boolean;
+  is_suspended?: boolean;
+  suspended_reason?: string | null;
+  is_email_verified?: boolean;
+  onboarding_completed?: boolean;
+  onboarding_current_step?: number;
   created_at: string;
 }
 
@@ -20,9 +27,62 @@ export interface RegisterResponse {
   id?: string;
   full_name?: string;
   email?: string;
-  created_at?: string;
+  is_email_verified?: boolean;
   message?: string;
 }
+
+export interface VerifyEmailPayload {
+  token: string;
+}
+
+export interface VerifyEmailResponse {
+  success: boolean;
+  message: string;
+  is_email_verified: boolean;
+  access_token?: string;
+  token_type?: string;
+}
+
+export interface ResendVerificationPayload {
+  email: string;
+}
+
+export interface ResendVerificationResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface CareerProfile {
+  user_id: string;
+  onboarding_current_step: number;
+  onboarding_completed: boolean;
+  career_stage?: string | null;
+  primary_goals: string[];
+  education_level?: string | null;
+  specialization?: string | null;
+  graduation_year?: string | null;
+  college?: string | null;
+  experience_level?: string | null;
+  target_role?: string | null;
+  is_exploring_roles: boolean;
+  skills: string[];
+  updated_at?: string | null;
+}
+
+export interface OnboardingStepPayload {
+  step: number;
+  career_stage?: string | null;
+  primary_goals?: string[];
+  education_level?: string | null;
+  specialization?: string | null;
+  graduation_year?: string | null;
+  college?: string | null;
+  experience_level?: string | null;
+  target_role?: string | null;
+  is_exploring_roles?: boolean;
+  skills?: string[];
+}
+
 
 export interface ResumeSkill {
   skill: string;
@@ -354,3 +414,290 @@ export interface CareerProgress {
   week: string;
   score: number;
 }
+
+export interface CopilotChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
+export interface CopilotResponse {
+  reply: string;
+  conversation_id?: string;
+}
+
+export interface CopilotConversation {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CopilotMessage {
+  id: string;
+  conversation_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  created_at: string;
+}
+
+export interface CopilotConversationDetail extends CopilotConversation {
+  messages: CopilotMessage[];
+}
+
+export interface InterviewSessionListItem {
+  id: string;
+  role: string;
+  difficulty: string;
+  mode: string;
+  status: string;
+  overall_score?: number | null;
+  started_at: string;
+  completed_at?: string | null;
+  total_questions: number;
+  current_index: number;
+}
+
+export interface InterviewMessageItem {
+  id: string;
+  sender: string;
+  content: string;
+  feedback?: string | null;
+  score?: number | null;
+  question_index: number;
+  created_at: string;
+}
+
+export interface InterviewSessionDetail {
+  id: string;
+  role: string;
+  difficulty: string;
+  mode: string;
+  status: string;
+  overall_score?: number | null;
+  technical_score?: number | null;
+  communication_score?: number | null;
+  confidence_score?: number | null;
+  feedback_summary?: string | null;
+  strengths: string[];
+  weaknesses: string[];
+  questions: string[];
+  current_index: number;
+  total_questions: number;
+  messages: InterviewMessageItem[];
+  started_at: string;
+  completed_at?: string | null;
+  created_at: string;
+}
+
+export interface AdminUserListItem {
+  id: string;
+  email: string;
+  full_name?: string;
+  role: "user" | "admin" | "super_admin";
+  is_active: boolean;
+  is_suspended: boolean;
+  suspended_reason?: string | null;
+  is_email_verified: boolean;
+  onboarding_completed: boolean;
+  target_role?: string | null;
+  ats_score?: number | null;
+  readiness_score?: number | null;
+  applications_count: number;
+  interviews_count: number;
+  last_activity_at?: string | null;
+  created_at: string;
+}
+
+export interface AdminUserListResponse {
+  users: AdminUserListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface AdminUserDetailResponse {
+  id: string;
+  email: string;
+  full_name?: string;
+  role: "user" | "admin" | "super_admin";
+  is_active: boolean;
+  is_suspended: boolean;
+  suspended_reason?: string | null;
+  is_email_verified: boolean;
+  onboarding_completed: boolean;
+  target_role?: string | null;
+  career_profile?: Record<string, any> | null;
+  skills: string[];
+  resumes_count: number;
+  latest_ats_score?: number | null;
+  interviews_count: number;
+  latest_interview_score?: number | null;
+  applications_count: number;
+  active_goals_count: number;
+  recommendations_count: number;
+  readiness_score: number;
+  created_at: string;
+  last_activity_at?: string | null;
+}
+
+export interface AdminDashboardStats {
+  total_users: number;
+  active_users_today: number;
+  new_users_today: number;
+  suspended_users: number;
+  total_resumes: number;
+  total_interviews: number;
+  total_applications: number;
+  total_ai_requests: number;
+  recommendation_runs: number;
+  platform_health: string;
+  recent_activity: Array<{
+    id: string;
+    action_type: string;
+    target_user_id?: string | null;
+    created_at?: string | null;
+  }>;
+}
+
+export interface PlatformAnalyticsStats {
+  total_users: number;
+  daily_active_users: number;
+  weekly_active_users: number;
+  monthly_active_users: number;
+  new_users_30d: number;
+  retention_rate: number;
+  feature_usage: Record<string, number>;
+  applications_by_stage: Record<string, number>;
+  interview_conversion_rate: number;
+  offer_conversion_rate: number;
+  top_skill_gaps: Array<{ skill: string; frequency: number }>;
+  top_target_roles: Array<{ role: string; count: number }>;
+  top_companies: Array<{ company: string; applications: number }>;
+}
+
+export interface AIUsageStats {
+  total_requests: number;
+  successful_requests: number;
+  failed_requests: number;
+  success_rate: number;
+  average_response_time_ms: number;
+  breakdown_by_feature: Record<string, number>;
+}
+
+export interface SystemHealthResponse {
+  status: "healthy" | "degraded" | "unhealthy";
+  services: Record<string, string>;
+  timestamp: string;
+}
+
+export interface FeatureFlag {
+  id: string;
+  key: string;
+  name: string;
+  description?: string;
+  is_enabled: boolean;
+  target_roles: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlatformAnnouncement {
+  id: string;
+  title: string;
+  message: string;
+  type: "info" | "success" | "warning" | "maintenance";
+  target_audience: "all" | "users" | "admins";
+  is_active: boolean;
+  starts_at: string;
+  expires_at?: string | null;
+  created_at: string;
+}
+
+export interface AdminAuditLog {
+  id: string;
+  admin_user_id?: string | null;
+  action_type: string;
+  target_user_id?: string | null;
+  resource_type?: string | null;
+  resource_id?: string | null;
+  action_metadata: Record<string, any>;
+  ip_address?: string | null;
+  created_at: string;
+}
+
+export interface AdminUserResumeItem {
+  id: string;
+  original_filename: string;
+  file_size?: number | null;
+  mime_type?: string | null;
+  ats_score?: number | null;
+  overall_feedback?: string | null;
+  uploaded_at?: string | null;
+  skills_count: number;
+  missing_skills_count: number;
+}
+
+export interface AdminUserInterviewItem {
+  id: string;
+  role: string;
+  difficulty: string;
+  mode: string;
+  status: string;
+  overall_score?: number | null;
+  technical_score?: number | null;
+  communication_score?: number | null;
+  feedback_summary?: string | null;
+  messages_count: number;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+export interface AdminUserApplicationItem {
+  id: string;
+  company_name: string;
+  job_title: string;
+  location?: string | null;
+  salary_range?: string | null;
+  stage: string;
+  status: string;
+  applied_date?: string | null;
+  match_score_at_application: number;
+  notes?: string | null;
+  events_count: number;
+  debriefs_count: number;
+}
+
+export interface AdminUserCopilotItem {
+  id: string;
+  title: string;
+  messages_count: number;
+  last_message_preview?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminUserActivityItem {
+  id: string;
+  activity_type: string;
+  title: string;
+  description: string;
+  created_at: string;
+}
+
+export interface AdminSimulationSessionResponse {
+  id: string;
+  admin_user_id: string;
+  target_user_id: string;
+  token?: string | null;
+  is_active: boolean;
+  expires_at: string;
+  created_at: string;
+  ended_at?: string | null;
+  ended_reason?: string | null;
+  target_user_email?: string | null;
+  target_user_name?: string | null;
+}
+
+
+

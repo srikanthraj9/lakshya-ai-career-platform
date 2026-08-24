@@ -73,12 +73,15 @@ class LLMClient:
             "max_tokens": max_tokens,
         }
 
-        response = requests.post(
-            f"{self.base_url}/chat/completions",
-            headers=self._headers(),
-            json=payload,
-            timeout=timeout_seconds or settings.llm_timeout_seconds,
-        )
+        try:
+            response = requests.post(
+                f"{self.base_url}/chat/completions",
+                headers=self._headers(),
+                json=payload,
+                timeout=timeout_seconds or settings.llm_timeout_seconds,
+            )
+        except requests.exceptions.RequestException as err:
+            raise ExternalServiceException(f"LLM network error: {err}") from err
 
         if response.status_code >= 400:
             raise ExternalServiceException(

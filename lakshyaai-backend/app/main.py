@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -27,6 +27,12 @@ def create_tables():
 
         Base.metadata.create_all(bind=engine)
         with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_email_verified BOOLEAN DEFAULT FALSE"))
+            connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'user'"))
+            connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT FALSE"))
+            connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_reason TEXT"))
+            connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ"))
+            connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ"))
             connection.execute(text("ALTER TABLE resumes ADD COLUMN IF NOT EXISTS file_name VARCHAR"))
             connection.execute(text("ALTER TABLE resumes ADD COLUMN IF NOT EXISTS extracted_text TEXT"))
             connection.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS title VARCHAR"))
@@ -42,15 +48,31 @@ def create_tables():
             connection.execute(text("UPDATE roles SET demand_level = 'Medium' WHERE demand_level IS NULL"))
             connection.execute(text("UPDATE roles SET core_skills = '[]'::jsonb WHERE core_skills IS NULL"))
             connection.execute(text("UPDATE roles SET advanced_skills = '[]'::jsonb WHERE advanced_skills IS NULL"))
+
+        from app.db.database import SessionLocal
+        from app.services.admin_service import AdminService
+        from app.services.feature_flag_service import FeatureFlagService
+        db = SessionLocal()
+        try:
+            AdminService.bootstrap_admin_users(db)
+            FeatureFlagService.seed_default_flags(db)
+        finally:
+            db.close()
     except Exception as startup_error:
         if 'type "vector" does not exist' in str(startup_error).lower():
             print("Skipping automatic table creation because pgvector is unavailable.")
             return
         raise
 
+import uuid
+from app.core.security_middleware import security_and_rate_limit_middleware
+from app.services.health_service import HealthService
+from app.db.database import get_db
+from sqlalchemy.orm import Session
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # 🔥 TEMP FIX
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,21 +80,34 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
-    logger.info("Incoming request %s %s", request.method, request.url.path)
-    response = await call_next(request)
-    logger.info("Completed request %s %s -> %s", request.method, request.url.path, response.status_code)
+async def security_and_telemetry_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    logger.info("[%s] Incoming %s %s", request_id, request.method, request.url.path)
+    
+    # Run through security & rate limit checks
+    response = await security_and_rate_limit_middleware(request, call_next)
+    response.headers["X-Request-ID"] = request_id
+    logger.info("[%s] Completed %s %s -> %s", request_id, request.method, request.url.path, response.status_code)
     return response
 
 
 @app.get("/api/health")
-async def health_check():
+async def health_check(request: Request):
     logger.info("Health check hit on /api/health")
-    return {
-        "status": "ok",
-        "service": "lakshyaai-backend",
-        "port": 10000,
-    }
+    return HealthService.check_liveness()
+
+
+from app.core.release import get_release_metadata
+
+@app.get("/api/release")
+async def release_info():
+    return get_release_metadata()
+
+
+@app.get("/api/health/ready")
+async def readiness_check(db: Session = Depends(get_db)):
+    logger.info("Readiness check hit on /api/health/ready")
+    return HealthService.check_readiness(db)
 
 
 @app.exception_handler(AppException)

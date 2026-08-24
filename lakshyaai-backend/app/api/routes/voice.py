@@ -54,13 +54,21 @@ def _parse_messages(raw_messages: str | None) -> list[dict[str, str]]:
     return normalized_messages
 
 
+def _resolve_role(role: str | None, user: models.User) -> str:
+    if role and role.strip() and role.strip() != DEFAULT_ROLE:
+        return role.strip()
+    if user.career_profile and user.career_profile.target_role:
+        return user.career_profile.target_role
+    return role.strip() if role and role.strip() else DEFAULT_ROLE
+
+
 @router.get("/question", response_model=VoiceQuestionResponse)
 async def get_voice_question(
     role: str = DEFAULT_ROLE,
     current_user: models.User = Depends(get_current_user),
 ):
     try:
-        resolved_role = role.strip() or DEFAULT_ROLE
+        resolved_role = _resolve_role(role, current_user)
         logger.info("Voice question requested user_id=%s role=%s", current_user.id, resolved_role)
         return {
             "role": resolved_role,
@@ -93,7 +101,7 @@ async def analyze_voice_answer(
         raise ValidationException("No voice detected. Please speak clearly.")
 
     try:
-        resolved_role = role.strip() if role and role.strip() else DEFAULT_ROLE
+        resolved_role = _resolve_role(role, current_user)
         resolved_question = question.strip() if question else ""
         logger.info(
             "Voice answer received user_id=%s filename=%s size=%s role=%s",

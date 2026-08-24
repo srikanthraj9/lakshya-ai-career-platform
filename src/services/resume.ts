@@ -16,6 +16,10 @@ export const resumeService = {
     return res.data;
   },
 
+  async uploadResume(file: File, jobDescription?: string): Promise<Resume> {
+    return resumeService.upload(file, jobDescription);
+  },
+
   async listResumes(): Promise<ResumeListItem[]> {
     const res = await api.get("/resumes");
     return res.data;
@@ -46,4 +50,17 @@ export const resumeService = {
     });
     return res.data;
   },
+
+  async downloadResumeFile(id: string): Promise<Blob> {
+    const res = await api.get(`/resumes/${id}/file`, {
+      responseType: "blob",
+    });
+    return res.data;
+  },
+
+  async listRewrites(): Promise<Array<{ id: string; title: string; pdf_url: string; tex_url: string; created_at: string }>> {
+    const res = await api.get("/resume/rewrites");
+    return res.data;
+  },
 };
+

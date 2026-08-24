@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.dependencies import get_current_user
+from app.core.permissions import require_admin
 from app.db import models
 from app.db.database import get_db
 from app.db.schemas import (
@@ -214,9 +215,9 @@ def _run_alignment_or_raise(db: Session, *, resume_id: UUID, current_user: model
 def create_role(
     role: RoleCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    admin_user: models.User = Depends(require_admin),
 ):
-    del current_user
+    del admin_user
 
     role_name = (role.title or role.name or "").strip()
     role_key = _role_identity_key(role_name)
@@ -291,9 +292,9 @@ def add_role_skills(
     role_id: UUID,
     skills: List[RoleSkillCreate],
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    admin_user: models.User = Depends(require_admin),
 ):
-    del current_user
+    del admin_user
 
     role = db.query(models.Role).filter(models.Role.id == role_id).first()
 
@@ -343,9 +344,9 @@ def get_role_skills(role_id: UUID, db: Session = Depends(get_db)):
 def delete_role_skill(
     skill_id: UUID,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    admin_user: models.User = Depends(require_admin),
 ):
-    del current_user
+    del admin_user
 
     skill = db.query(models.RoleSkill).filter(models.RoleSkill.id == skill_id).first()
 

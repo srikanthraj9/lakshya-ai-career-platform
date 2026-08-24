@@ -1,0 +1,34 @@
+{
+  "owner_id": "ac7709ff-958f-4a95-aa37-6757ee9c32f1",
+  "structured": {
+    "name": "Alice Engineer",
+    "phone": "",
+    "email": "alice@example.com",
+    "linkedin": "",
+    "github": "",
+    "portfolio": "",
+    "summary": "",
+    "education": [],
+    "experience": [],
+    "projects": [],
+    "skills": {
+      "programming": [
+        "python",
+        "typescript"
+      ],
+      "web": [
+        "fastapi",
+        "react",
+        "microservices"
+      ],
+      "cs": [],
+      "databases": [],
+      "tools": [],
+      "professional": []
+    },
+    "certifications": []
+  },
+  "preview": "Skills\n- Programming: python, typescript\n- Web: fastapi, react, microservices",
+  "tex_file": "resume.tex",
+  "pdf_file": "resume.pdf"
+}

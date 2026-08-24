@@ -27,4 +27,15 @@ export const authService = {
     const res = await api.get("/users/me");
     return res.data;
   },
+
+  async verifyEmail(payload: VerifyEmailPayload): Promise<VerifyEmailResponse> {
+    const res = await api.post("/auth/verify-email", payload);
+    return res.data;
+  },
+
+  async resendVerification(payload: ResendVerificationPayload): Promise<ResendVerificationResponse> {
+    const res = await api.post("/auth/resend-verification", payload);
+    return res.data;
+  },
 };
+

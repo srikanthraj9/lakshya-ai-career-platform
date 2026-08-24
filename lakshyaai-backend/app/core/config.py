@@ -1,59 +1,64 @@
-from __future__ import annotations
-
 import os
-from dataclasses import dataclass
-
-from dotenv import load_dotenv
-
-load_dotenv()
+from typing import List
+from pydantic import BaseModel
 
 
-def _get_int(name: str, default: int) -> int:
-    try:
-        return int(os.getenv(name, str(default)))
-    except (TypeError, ValueError):
-        return default
+class Settings(BaseModel):
+    PROJECT_NAME: str = "Lakshya AI Backend"
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
+    API_V1_PREFIX: str = "/api"
 
-
-def _get_float(name: str, default: float) -> float:
-    try:
-        return float(os.getenv(name, str(default)))
-    except (TypeError, ValueError):
-        return default
-
-
-def _get_bool(name: str, default: bool) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-@dataclass(frozen=True)
-class Settings:
-    openrouter_api_key: str | None = os.getenv("OPENROUTER_API_KEY")
-    openai_api_key: str | None = os.getenv("OPENAI_API_KEY")
-    openrouter_base_url: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-    openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-    llm_model: str = os.getenv("LLM_MODEL", "openai/gpt-4o-mini")
-    llm_temperature: float = _get_float("LLM_TEMPERATURE", 0.2)
-    llm_timeout_seconds: int = _get_int("LLM_TIMEOUT_SECONDS", 60)
-    llm_aux_timeout_seconds: int = _get_int("LLM_AUX_TIMEOUT_SECONDS", 8)
-    enable_llm_skill_extraction: bool = _get_bool("ENABLE_LLM_SKILL_EXTRACTION", False)
-    enable_llm_resume_feedback: bool = _get_bool("ENABLE_LLM_RESUME_FEEDBACK", False)
-    embedding_model: str = os.getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small")
-    embedding_dimension: int = _get_int("EMBEDDING_DIMENSION", 1536)
-    embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "").strip().lower()
-    sentence_transformer_model: str = os.getenv(
-        "SENTENCE_TRANSFORMER_MODEL",
-        "sentence-transformers/all-MiniLM-L6-v2",
+    # Database
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5432/lakshyaai",
     )
-    resume_rewrite_chunk_chars: int = _get_int("RESUME_REWRITE_CHUNK_CHARS", 6000)
-    resume_rewrite_output_dir: str = os.getenv("RESUME_REWRITE_OUTPUT_DIR", "generated/resume_rewrites")
-    latex_command: str = os.getenv("LATEX_COMMAND", "pdflatex")
+
+    # Security & JWT
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "supersecretkey")
+    ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+
+    # CORS
+    CORS_ORIGINS: List[str] = [
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000",
+        ).split(",")
+        if origin.strip()
+    ]
+
+    # Rate Limiting
+    RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+    RATE_LIMIT_PER_MINUTE_AUTH: int = int(os.getenv("RATE_LIMIT_PER_MINUTE_AUTH", "15"))
+    RATE_LIMIT_PER_MINUTE_AI: int = int(os.getenv("RATE_LIMIT_PER_MINUTE_AI", "30"))
+
+    # AI & Services
+    AI_PROVIDER: str = os.getenv("AI_PROVIDER", "gemini")
+    AI_API_KEY: str = os.getenv("AI_API_KEY", "")
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+    openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    openrouter_api_key: str = os.getenv("OPENROUTER_API_KEY", "")
+    openrouter_base_url: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.2"))
+    llm_timeout_seconds: int = int(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
+
+    # Admin Bootstrap
+    ADMIN_EMAILS: List[str] = [
+        email.strip().lower()
+        for email in os.getenv(
+            "ADMIN_EMAILS",
+            "srikanthuppalapati09@gmail.com,admin@lakshya.ai",
+        ).split(",")
+        if email.strip()
+    ]
+
+    @property
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT.lower() == "production"
 
 
 settings = Settings()
-
-OPENROUTER_API_KEY = settings.openrouter_api_key
-OPENAI_API_KEY = settings.openai_api_key

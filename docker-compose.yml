@@ -1,0 +1,55 @@
+version: "3.8"
+
+services:
+  # PostgreSQL with PgVector Extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: lakshyaai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: lakshyaai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend Service
+  backend:
+    build:
+      context: ./lakshyaai-backend
+      dockerfile: Dockerfile
+    container_name: lakshyaai-backend
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/lakshyaai
+      SECRET_KEY: dev_secret_key_change_in_prod
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      ADMIN_EMAILS: srikanthuppalapati09@gmail.com,admin@lakshya.ai
+    ports:
+      - "10000:10000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Frontend Web Client
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lakshyaai-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

@@ -15,7 +15,8 @@ class Token(BaseModel):
 class UserCreate(BaseModel):
     full_name: str
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8, description="Password must be at least 8 characters long")
+
 
 
 class UserLogin(BaseModel):
@@ -25,11 +26,85 @@ class UserLogin(BaseModel):
 
 class UserResponse(BaseModel):
     id: UUID
-    full_name: Optional[str]
+    full_name: Optional[str] = None
     email: EmailStr
+    role: Optional[str] = "user"
+    is_suspended: bool = False
+    is_email_verified: bool = False
+    onboarding_completed: bool = False
+    onboarding_current_step: int = 1
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class RegisterResponse(BaseModel):
+    id: UUID
+    full_name: Optional[str] = None
+    email: EmailStr
+    is_email_verified: bool = False
+    message: str = "Account created successfully. Please verify your email to continue."
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+
+class EmailVerificationResponse(BaseModel):
+    success: bool
+    message: str
+    is_email_verified: bool = True
+
+
+class OnboardingStepSave(BaseModel):
+    step: int = Field(ge=1, le=8)
+    career_stage: Optional[str] = None
+    primary_goals: Optional[list[str]] = None
+    education_level: Optional[str] = None
+    specialization: Optional[str] = None
+    graduation_year: Optional[str] = None
+    college: Optional[str] = None
+    experience_level: Optional[str] = None
+    target_role: Optional[str] = None
+    is_exploring_roles: Optional[bool] = None
+    skills: Optional[list[str]] = None
+
+
+class UserCareerProfileResponse(BaseModel):
+    user_id: UUID
+    onboarding_current_step: int = 1
+    onboarding_completed: bool = False
+    career_stage: Optional[str] = None
+    primary_goals: list[str] = []
+    education_level: Optional[str] = None
+    specialization: Optional[str] = None
+    graduation_year: Optional[str] = None
+    college: Optional[str] = None
+    experience_level: Optional[str] = None
+    target_role: Optional[str] = None
+    is_exploring_roles: bool = False
+    skills: list[str] = []
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OnboardingCompleteRequest(BaseModel):
+    career_stage: Optional[str] = None
+    primary_goals: Optional[list[str]] = None
+    education_level: Optional[str] = None
+    specialization: Optional[str] = None
+    graduation_year: Optional[str] = None
+    college: Optional[str] = None
+    experience_level: Optional[str] = None
+    target_role: Optional[str] = None
+    is_exploring_roles: Optional[bool] = None
+    skills: Optional[list[str]] = None
+
 
 
 class ResumeSkillResponse(BaseModel):
@@ -484,7 +559,856 @@ class CopilotChatMessage(BaseModel):
 
 class CopilotChatRequest(BaseModel):
     messages: list[CopilotChatMessage] = Field(min_length=1)
+    conversation_id: Optional[UUID] = None
 
 
 class CopilotResponse(BaseModel):
     reply: str
+    conversation_id: Optional[UUID] = None
+
+
+class InterviewSessionListItem(BaseModel):
+    id: UUID
+    role: str
+    difficulty: str
+    mode: str
+    status: str
+    overall_score: Optional[float] = None
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    total_questions: int
+    current_index: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InterviewMessageResponse(BaseModel):
+    id: UUID
+    sender: str
+    content: str
+    feedback: Optional[str] = None
+    score: Optional[float] = None
+    question_index: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InterviewSessionDetailResponse(BaseModel):
+    id: UUID
+    role: str
+    difficulty: str
+    mode: str
+    status: str
+    overall_score: Optional[float] = None
+    technical_score: Optional[float] = None
+    communication_score: Optional[float] = None
+    confidence_score: Optional[float] = None
+    feedback_summary: Optional[str] = None
+    strengths: list[str] = Field(default_factory=list)
+    weaknesses: list[str] = Field(default_factory=list)
+    questions: list[str] = Field(default_factory=list)
+    current_index: int
+    total_questions: int
+    messages: list[InterviewMessageResponse] = Field(default_factory=list)
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CopilotConversationResponse(BaseModel):
+    id: UUID
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CopilotMessageResponse(BaseModel):
+    id: UUID
+    conversation_id: UUID
+    role: str
+    content: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CopilotConversationDetailResponse(BaseModel):
+    id: UUID
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    messages: list[CopilotMessageResponse] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ResumeRewriteListItem(BaseModel):
+    id: UUID
+    title: str
+    pdf_url: str
+    tex_url: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# =========================
+# CAREER ACTIVITIES (PERSISTENCE)
+# =========================
+
+class CareerActivityCreate(BaseModel):
+    client_event_id: Optional[str] = None
+    activity_type: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=255)
+    description: str
+    activity_metadata: dict = Field(default_factory=dict)
+
+
+class CareerActivityResponse(BaseModel):
+    id: UUID
+    client_event_id: Optional[str] = None
+    activity_type: str
+    title: str
+    description: str
+    activity_metadata: dict = Field(default_factory=dict)
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# =========================
+# ROADMAP PROGRESS (PERSISTENCE)
+# =========================
+
+class RoadmapProgressCreate(BaseModel):
+    role: str = Field(min_length=1, max_length=255)
+    experience_level: str = Field(min_length=1, max_length=64)
+    completed_steps: list[int] = Field(default_factory=list)
+
+
+class RoadmapProgressResponse(BaseModel):
+    id: UUID
+    role: str
+    experience_level: str
+    completed_steps: list[int] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# =========================
+# NOTIFICATIONS (PERSISTENCE)
+# =========================
+
+class NotificationCreate(BaseModel):
+    client_event_id: Optional[str] = None
+    type: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=255)
+    message: str
+    action_url: Optional[str] = None
+    action_text: Optional[str] = None
+
+
+class NotificationResponse(BaseModel):
+    id: UUID
+    client_event_id: Optional[str] = None
+    type: str
+    title: str
+    message: str
+    action_url: Optional[str] = None
+    action_text: Optional[str] = None
+    is_read: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# =========================
+# CAREER GOALS
+# =========================
+
+class CareerGoalCreate(BaseModel):
+    target_role: str = Field(min_length=1, max_length=255)
+    target_company: Optional[str] = None
+    target_salary: Optional[str] = None
+    target_date: Optional[datetime] = None
+    target_readiness_score: float = Field(default=90.0, ge=1, le=100)
+    priority: str = Field(default="high")
+    is_active: bool = True
+
+
+class CareerGoalUpdate(BaseModel):
+    target_role: Optional[str] = None
+    target_company: Optional[str] = None
+    target_salary: Optional[str] = None
+    target_date: Optional[datetime] = None
+    target_readiness_score: Optional[float] = None
+    priority: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class CareerGoalResponse(BaseModel):
+    id: UUID
+    target_role: str
+    target_company: Optional[str] = None
+    target_salary: Optional[str] = None
+    target_date: Optional[datetime] = None
+    target_readiness_score: float
+    priority: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# =========================
+# CAREER RECOMMENDATIONS
+# =========================
+
+class RecommendationReason(BaseModel):
+    signal: str
+    impact: float
+    confidence: float
+    urgency: float
+    explanation: str
+    factors: list[str] = Field(default_factory=list)
+
+
+class CareerRecommendationResponse(BaseModel):
+    id: UUID
+    client_event_id: Optional[str] = None
+    recommendation_type: str
+    title: str
+    description: str
+    source_module: str
+    target_module: str
+    priority: str
+    impact_score: float
+    confidence_score: float
+    urgency_score: float
+    status: str
+    action_url: Optional[str] = None
+    action_label: Optional[str] = None
+    reason: Optional[RecommendationReason] = None
+    recommendation_metadata: dict = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+    completed_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CareerRecommendationUpdate(BaseModel):
+    status: str = Field(pattern="^(active|completed|dismissed|expired|superseded)$")
+
+
+# =========================
+# CAREER AUTOMATION RULES
+# =========================
+
+class CareerAutomationRuleCreate(BaseModel):
+    trigger_type: str = Field(min_length=1, max_length=64)
+    condition_config: dict = Field(default_factory=dict)
+    action_type: str = Field(min_length=1, max_length=64)
+    action_config: dict = Field(default_factory=dict)
+    is_enabled: bool = True
+
+
+class CareerAutomationRuleUpdate(BaseModel):
+    is_enabled: Optional[bool] = None
+    condition_config: Optional[dict] = None
+    action_config: Optional[dict] = None
+
+
+class CareerAutomationRuleResponse(BaseModel):
+    id: UUID
+    trigger_type: str
+    condition_config: dict
+    action_type: str
+    action_config: dict
+    is_enabled: bool
+    last_triggered_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# =========================
+# CAREER INSIGHT SNAPSHOTS & UNIFIED INTELLIGENCE
+# =========================
+
+class CareerInsightSnapshotResponse(BaseModel):
+    id: UUID
+    readiness_score: float
+    resume_score: Optional[float] = None
+    roadmap_progress: Optional[float] = None
+    interview_score: Optional[float] = None
+    job_readiness: Optional[float] = None
+    skill_coverage: Optional[float] = None
+    snapshot_metadata: dict = Field(default_factory=dict)
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CriticalSkillGapItem(BaseModel):
+    skill: str
+    frequency_in_jobs: int
+    is_role_requirement: bool
+    priority: str
+    roadmap_status: str  # missing, planned, completed
+
+
+class CareerMomentum(BaseModel):
+    score: float
+    trend: str  # improving, stable, declining
+    delta_text: str
+    signals: dict = Field(default_factory=dict)
+
+
+class CareerIntelligenceResponse(BaseModel):
+    readiness_score: float
+    career_momentum: CareerMomentum
+    active_goal: Optional[CareerGoalResponse] = None
+    top_priority: Optional[CareerRecommendationResponse] = None
+    recommendations: list[CareerRecommendationResponse] = Field(default_factory=list)
+    critical_gaps: list[CriticalSkillGapItem] = Field(default_factory=list)
+    strengths: list[str] = Field(default_factory=list)
+    next_milestone: Optional[dict] = None
+    signals: dict = Field(default_factory=dict)
+
+
+# =========================
+# APPLICATION TRACKER & EXECUTION
+# =========================
+
+class JobApplicationCreate(BaseModel):
+    company_name: str = Field(min_length=1, max_length=255)
+    job_title: str = Field(min_length=1, max_length=255)
+    location: Optional[str] = None
+    salary_range: Optional[str] = None
+    job_url: Optional[str] = None
+    job_source: str = Field(default="manual")
+    external_job_id: Optional[str] = None
+    source_job_id: Optional[UUID] = None
+    stage: str = Field(default="wishlist")  # wishlist, applied, screening, interviewing, offer, closed
+    status: str = Field(default="active")  # active, offer_accepted, offer_declined, rejected, withdrawn, expired
+    applied_date: Optional[datetime] = None
+    resume_version_id: Optional[UUID] = None
+    match_score_at_application: float = 0.0
+    notes: Optional[str] = None
+    next_step_date: Optional[datetime] = None
+    next_step_notes: Optional[str] = None
+    outcome_notes: Optional[str] = None
+    application_metadata: dict = Field(default_factory=dict)
+
+
+class JobApplicationUpdate(BaseModel):
+    company_name: Optional[str] = None
+    job_title: Optional[str] = None
+    location: Optional[str] = None
+    salary_range: Optional[str] = None
+    job_url: Optional[str] = None
+    stage: Optional[str] = None
+    status: Optional[str] = None
+    applied_date: Optional[datetime] = None
+    resume_version_id: Optional[UUID] = None
+    match_score_at_application: Optional[float] = None
+    notes: Optional[str] = None
+    next_step_date: Optional[datetime] = None
+    next_step_notes: Optional[str] = None
+    outcome_notes: Optional[str] = None
+    application_metadata: Optional[dict] = None
+
+
+class JobApplicationTransition(BaseModel):
+    stage: str
+    status: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ApplicationEventResponse(BaseModel):
+    id: UUID
+    application_id: UUID
+    event_type: str
+    previous_stage: Optional[str] = None
+    new_stage: Optional[str] = None
+    title: str
+    description: Optional[str] = None
+    event_metadata: dict = Field(default_factory=dict)
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InterviewDebriefCreate(BaseModel):
+    company_name: str
+    round_type: str
+    difficulty_rating: int = Field(default=3, ge=1, le=5)
+    technical_score: Optional[float] = Field(default=None, ge=1, le=10)
+    communication_score: Optional[float] = Field(default=None, ge=1, le=10)
+    problem_solving_score: Optional[float] = Field(default=None, ge=1, le=10)
+    system_design_score: Optional[float] = Field(default=None, ge=1, le=10)
+    confidence_score: Optional[float] = Field(default=None, ge=1, le=10)
+    questions_asked: list[str] = Field(default_factory=list)
+    candidate_reflection: Optional[str] = None
+    identified_weaknesses: list[str] = Field(default_factory=list)
+    outcome: str = Field(default="pending")  # passed, rejected, pending
+
+
+class InterviewDebriefResponse(BaseModel):
+    id: UUID
+    application_id: UUID
+    company_name: str
+    round_type: str
+    date: datetime
+    difficulty_rating: int
+    technical_score: Optional[float] = None
+    communication_score: Optional[float] = None
+    problem_solving_score: Optional[float] = None
+    system_design_score: Optional[float] = None
+    confidence_score: Optional[float] = None
+    questions_asked: list[str] = Field(default_factory=list)
+    candidate_reflection: Optional[str] = None
+    identified_weaknesses: list[str] = Field(default_factory=list)
+    outcome: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobApplicationResponse(BaseModel):
+    id: UUID
+    company_name: str
+    job_title: str
+    location: Optional[str] = None
+    salary_range: Optional[str] = None
+    job_url: Optional[str] = None
+    job_source: str
+    external_job_id: Optional[str] = None
+    source_job_id: Optional[UUID] = None
+    stage: str
+    status: str
+    applied_date: Optional[datetime] = None
+    last_status_change: datetime
+    resume_version_id: Optional[UUID] = None
+    match_score_at_application: float
+    notes: Optional[str] = None
+    next_step_date: Optional[datetime] = None
+    next_step_notes: Optional[str] = None
+    outcome_notes: Optional[str] = None
+    application_metadata: dict = Field(default_factory=dict)
+    events: list[ApplicationEventResponse] = Field(default_factory=list)
+    debriefs: list[InterviewDebriefResponse] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobApplicationStats(BaseModel):
+    total_active: int
+    wishlist_count: int
+    applied_count: int
+    screening_count: int
+    interviewing_count: int
+    offer_count: int
+    closed_count: int
+    conversion_rate: float
+    average_response_days: float
+    stage_breakdown: dict = Field(default_factory=dict)
+
+
+class CompanyIntelligenceResponse(BaseModel):
+    id: UUID
+    name: str
+    company_name_normalized: str
+    domain: Optional[str] = None
+    logo_url: Optional[str] = None
+    tech_stack: list[str] = Field(default_factory=list)
+    interview_stages: list[dict] = Field(default_factory=list)
+    hiring_culture_notes: Optional[str] = None
+    salary_benchmarks: dict = Field(default_factory=dict)
+    common_questions: list[str] = Field(default_factory=list)
+    data_source: str
+    source_url: Optional[str] = None
+    confidence_score: float
+    last_verified_at: datetime
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OutcomeLearningInsightResponse(BaseModel):
+    id: UUID
+    insight_type: str
+    title: str
+    description: str
+    metric_value: float
+    data_points: dict = Field(default_factory=dict)
+    source_count: int
+    confidence_score: float
+    fingerprint: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CareerSignal(BaseModel):
+    source: str  # application_outcome, resume, interview, roadmap, job_match
+    signal_type: str  # interview_weakness, missing_keyword, response_rate, rejection_pattern
+    skill: Optional[str] = None
+    severity: float = 0.5  # 0 to 1
+    confidence: float = 0.8
+    metadata: dict = Field(default_factory=dict)
+
+
+# =========================
+# ADMIN CONTROL CENTER SCHEMAS
+# =========================
+
+class AdminUserListItem(BaseModel):
+    id: UUID
+    email: str
+    full_name: Optional[str] = None
+    role: str = "user"
+    is_active: bool = True
+    is_suspended: bool = False
+    suspended_reason: Optional[str] = None
+    is_email_verified: bool = False
+    onboarding_completed: bool = False
+    target_role: Optional[str] = None
+    ats_score: Optional[float] = None
+    readiness_score: Optional[float] = None
+    applications_count: int = 0
+    interviews_count: int = 0
+    last_activity_at: Optional[datetime] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminUserListResponse(BaseModel):
+    users: list[AdminUserListItem]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class AdminUserDetailResponse(BaseModel):
+    id: UUID
+    email: str
+    full_name: Optional[str] = None
+    role: str
+    is_active: bool
+    is_suspended: bool
+    suspended_reason: Optional[str] = None
+    is_email_verified: bool
+    onboarding_completed: bool
+    target_role: Optional[str] = None
+    career_profile: Optional[dict] = None
+    skills: list[str] = Field(default_factory=list)
+    resumes_count: int = 0
+    latest_ats_score: Optional[float] = None
+    interviews_count: int = 0
+    latest_interview_score: Optional[float] = None
+    applications_count: int = 0
+    active_goals_count: int = 0
+    recommendations_count: int = 0
+    readiness_score: float = 0.0
+    created_at: datetime
+    last_activity_at: Optional[datetime] = None
+
+
+class AdminUserResumeItem(BaseModel):
+    id: UUID
+    original_filename: str
+    file_size: Optional[int] = None
+    mime_type: Optional[str] = None
+    ats_score: Optional[float] = None
+    overall_feedback: Optional[str] = None
+    uploaded_at: Optional[datetime] = None
+    skills_count: int = 0
+    missing_skills_count: int = 0
+
+
+class AdminUserInterviewItem(BaseModel):
+    id: UUID
+    role: str
+    difficulty: str
+    mode: str
+    status: str
+    overall_score: Optional[float] = None
+    technical_score: Optional[float] = None
+    communication_score: Optional[float] = None
+    feedback_summary: Optional[str] = None
+    messages_count: int = 0
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+
+class AdminUserApplicationItem(BaseModel):
+    id: UUID
+    company_name: str
+    job_title: str
+    location: Optional[str] = None
+    salary_range: Optional[str] = None
+    stage: str
+    status: str
+    applied_date: Optional[datetime] = None
+    match_score_at_application: float = 0.0
+    notes: Optional[str] = None
+    events_count: int = 0
+    debriefs_count: int = 0
+
+
+class AdminUserCopilotItem(BaseModel):
+    id: UUID
+    title: str
+    messages_count: int = 0
+    last_message_preview: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminUserActivityItem(BaseModel):
+    id: UUID
+    activity_type: str
+    title: str
+    description: str
+    created_at: datetime
+
+
+class AdminUserUpdateRequest(BaseModel):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_email_verified: Optional[bool] = None
+
+
+class AdminUserSuspendRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class AdminDashboardStats(BaseModel):
+    total_users: int
+    active_users_today: int
+    new_users_today: int
+    suspended_users: int
+    total_resumes: int
+    total_interviews: int
+    total_applications: int
+    total_ai_requests: int
+    recommendation_runs: int
+    platform_health: str
+    recent_activity: list[dict] = Field(default_factory=list)
+
+
+class PlatformAnalyticsStats(BaseModel):
+    total_users: int
+    daily_active_users: int
+    weekly_active_users: int
+    monthly_active_users: int
+    new_users_30d: int
+    retention_rate: float
+    feature_usage: dict = Field(default_factory=dict)
+    applications_by_stage: dict = Field(default_factory=dict)
+    interview_conversion_rate: float = 0.0
+    offer_conversion_rate: float = 0.0
+    top_skill_gaps: list[dict] = Field(default_factory=list)
+    top_target_roles: list[dict] = Field(default_factory=list)
+    top_companies: list[dict] = Field(default_factory=list)
+
+
+class AIUsageStats(BaseModel):
+    total_requests: int
+    successful_requests: int
+    failed_requests: int
+    success_rate: float
+    average_response_time_ms: float
+    breakdown_by_feature: dict = Field(default_factory=dict)
+
+
+class SystemHealthResponse(BaseModel):
+    status: str  # healthy, degraded, unhealthy
+    services: dict = Field(default_factory=dict)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class FeatureFlagCreate(BaseModel):
+    key: str = Field(min_length=2, max_length=64)
+    name: str = Field(min_length=2, max_length=128)
+    description: Optional[str] = None
+    is_enabled: bool = True
+    target_roles: list[str] = Field(default_factory=lambda: ["user", "admin", "super_admin"])
+
+
+class FeatureFlagUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_enabled: Optional[bool] = None
+    target_roles: Optional[list[str]] = None
+
+
+class FeatureFlagResponse(BaseModel):
+    id: UUID
+    key: str
+    name: str
+    description: Optional[str] = None
+    is_enabled: bool
+    target_roles: list[str] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PlatformAnnouncementCreate(BaseModel):
+    title: str = Field(min_length=3, max_length=255)
+    message: str = Field(min_length=5)
+    type: str = "info"  # info, success, warning, maintenance
+    target_audience: str = "all"  # all, users, admins
+    is_active: bool = True
+    expires_at: Optional[datetime] = None
+
+
+class PlatformAnnouncementUpdate(BaseModel):
+    title: Optional[str] = None
+    message: Optional[str] = None
+    type: Optional[str] = None
+    target_audience: Optional[str] = None
+    is_active: Optional[bool] = None
+    expires_at: Optional[datetime] = None
+
+
+class PlatformAnnouncementResponse(BaseModel):
+    id: UUID
+    title: str
+    message: str
+    type: str
+    target_audience: str
+    is_active: bool
+    starts_at: datetime
+    expires_at: Optional[datetime] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminAuditLogResponse(BaseModel):
+    id: UUID
+    admin_user_id: Optional[UUID] = None
+    action_type: str
+    target_user_id: Optional[UUID] = None
+    resource_type: Optional[str] = None
+    resource_id: Optional[str] = None
+    action_metadata: dict = Field(default_factory=dict)
+    before_data: Optional[dict] = None
+    after_data: Optional[dict] = None
+    diff: Optional[dict] = None
+    reason: Optional[str] = None
+    severity: str = "info"
+    confirmation_value: Optional[str] = None
+    simulation_session_id: Optional[UUID] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    request_id: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminSimulationStartRequest(BaseModel):
+    target_user_id: UUID
+    reason: Optional[str] = "Admin diagnostic investigation"
+    duration_minutes: int = Field(default=30, ge=5, le=120)
+
+
+class AdminSimulationSessionResponse(BaseModel):
+    id: UUID
+    admin_user_id: UUID
+    target_user_id: UUID
+    token: Optional[str] = None  # Returned only on creation
+    is_active: bool
+    expires_at: datetime
+    created_at: datetime
+    ended_at: Optional[datetime] = None
+    ended_reason: Optional[str] = None
+    target_user_email: Optional[str] = None
+    target_user_name: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DatabaseTableMetadata(BaseModel):
+    table_name: str
+    category: str
+    record_count: int
+    readable_fields: list[str]
+    masked_fields: list[str]
+    editable_fields: list[str]
+    immutable_fields: list[str]
+    delete_policy: str
+    relationships: dict = Field(default_factory=dict)
+
+
+class DatabaseRecordMutationRequest(BaseModel):
+    table_name: str
+    record_id: str
+    updates: dict
+    reason: str = Field(min_length=5, max_length=1000)
+    confirmation_value: Optional[str] = None
+
+
+class AdminTableMutationRequest(BaseModel):
+    updates: dict
+    reason: str = Field(min_length=3, max_length=1000)
+
+
+class AdminTableDeleteRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=1000)
+    confirmation_value: Optional[str] = None
+
+
+
+class DatabaseRecordMutationResponse(BaseModel):
+    table_name: str
+    record_id: str
+    diff: dict
+    reason: str
+    audit_log_id: UUID
+    updated_record: dict
+
+
+class UserFeedbackCreate(BaseModel):
+    feedback_type: str  # helpful, unhelpful, issue, idea
+    module: Optional[str] = None
+    message: Optional[str] = None
+    metadata_json: dict = Field(default_factory=dict)
+
+
+class UserFeedbackResponse(BaseModel):
+    id: UUID
+    user_id: Optional[UUID] = None
+    feedback_type: str
+    module: Optional[str] = None
+    message: Optional[str] = None
+    metadata_json: dict = Field(default_factory=dict)
+    status: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+
+
+
+

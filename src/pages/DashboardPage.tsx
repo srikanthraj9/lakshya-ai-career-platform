@@ -1,209 +1,199 @@
-import { useQuery } from "@tanstack/react-query";
-import { analyticsService } from "@/services/analytics";
-import { motion } from "framer-motion";
-import { FileText, Brain, Award, TrendingUp, Sparkles, Target } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { AnimatedCounter } from "@/components/AnimatedCounter";
+import { Award, Brain, TrendingUp, Target } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
 import { ErrorFallback } from "@/components/ErrorFallback";
-import { ResumeList } from "@/components/resume/ResumeList";
-import {
-  LineChart, Line, BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area,
-} from "recharts";
-import { useMemo } from "react";
-
-const statCards = [
-  { key: "ats_score", label: "ATS Score", icon: Award, color: "text-primary", suffix: "%" },
-  { key: "total_resumes", label: "Total Resumes", icon: FileText, color: "text-accent", suffix: "" },
-  { key: "skill_count", label: "Skills Detected", icon: Brain, color: "text-chart-3", suffix: "" },
-  { key: "interview_score", label: "Interview Score", icon: TrendingUp, color: "text-chart-4", suffix: "%" },
-] as const;
+import { MetricCard } from "@/components/shared/MetricCard";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { NextBestActions } from "@/components/dashboard/NextBestActions";
+import { QuickLaunchpad } from "@/components/dashboard/QuickLaunchpad";
+import { CareerProgressChart } from "@/components/dashboard/CareerProgressChart";
+import { SkillGapSection } from "@/components/dashboard/SkillGapSection";
+import { ActiveResumeCard } from "@/components/dashboard/ActiveResumeCard";
+import { JobMatchPreview } from "@/components/dashboard/JobMatchPreview";
+import { CareerActivityTimeline } from "@/components/activity/CareerActivityTimeline";
+import { useAuth } from "@/context/AuthContext";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function DashboardPage() {
-  const { data: summary, isLoading, isError, refetch } = useQuery({
-    queryKey: ["analytics-summary"],
-    queryFn: analyticsService.getSummary,
-    retry: 2,
-  });
+  const { user } = useAuth();
+  const {
+    profile,
+    breakdown,
+    targetRole,
+    summary,
+    nextBestActions,
+    formattedProgressTrend,
+    skillBenchmarks,
+    activeResume,
+    recentJobs,
+    isLoading,
+    isError,
+    refetchAll,
+  } = useDashboardData();
 
-  const { data: atsTrend } = useQuery({
-    queryKey: ["ats-trend"],
-    queryFn: analyticsService.getATSTrend,
-    retry: 2,
-  });
-
-  const { data: skillGrowth } = useQuery({
-    queryKey: ["skill-growth"],
-    queryFn: analyticsService.getSkillGrowth,
-    retry: 2,
-  });
-
-  const { data: careerProgress } = useQuery({
-    queryKey: ["career-progress"],
-    queryFn: analyticsService.getCareerProgress,
-    retry: 2,
-  });
-
-  const radarData = useMemo(() => {
-    if (!skillGrowth?.length) return undefined;
-    const maxVal = Math.max(...skillGrowth.map((x) => x.count), 10);
-    return skillGrowth.slice(0, 6).map((s) => ({ skill: s.skill, value: s.count, fullMark: maxVal }));
-  }, [skillGrowth]);
+  const userName =
+    user?.full_name?.split(" ")[0] || (user?.email ? user.email.split("@")[0] : "Candidate");
+  const rawAts = activeResume?.ats_score ?? (summary?.ats_score ?? 0);
+  const rawSkills =
+    profile?.skills?.length || activeResume?.skills?.length || summary?.skill_count || 0;
+  const rawInterview = summary?.interview_score ?? (breakdown?.interviewReadiness ?? 0);
+  const rawRoleMatch = targetRole.readiness ?? (breakdown?.roleMatch ?? 0);
 
   if (isError) {
     return (
       <PageTransition>
-        <ErrorFallback title="Dashboard Unavailable" message="Failed to load your dashboard data." onRetry={() => refetch()} />
+        <ErrorFallback
+          title="Command Center Unavailable"
+          message="Failed to load your career intelligence metrics."
+          onRetry={refetchAll}
+        />
       </PageTransition>
     );
   }
 
   return (
     <PageTransition>
-      <div className="space-y-8">
-        <div>
-          <h1 className="font-display text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Your career intelligence at a glance.</p>
-        </div>
+      <div className="space-y-8 max-w-7xl mx-auto">
+        {/* 1. Hero & Career Readiness Master Score */}
+        <DashboardHero
+          userName={userName}
+          targetRoleTitle={targetRole.title}
+          breakdown={breakdown}
+        />
 
-        {/* Stats */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" role="list" aria-label="Career statistics">
-          {statCards.map((card, i) => (
-            <motion.div
-              key={card.key}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1 }}
-              className="glass-card glass-card-hover animate-float-slow rounded-xl p-6"
-              style={{ animationDelay: `${i * 0.5}s` }}
-              role="listitem"
-              aria-label={`${card.label}: ${summary?.[card.key] ?? 0}${card.suffix}`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{card.label}</p>
-                  {isLoading ? <Skeleton className="mt-1 h-8 w-16" /> : (
-                    <p className="mt-1 text-3xl font-bold text-foreground">
-                      <AnimatedCounter value={summary?.[card.key] ?? 0} suffix={card.suffix} />
-                    </p>
-                  )}
-                </div>
-                <card.icon className={`h-8 w-8 ${card.color} transition-transform duration-300 group-hover:scale-110`} aria-hidden="true" />
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* AI Insight Cards */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass-card glass-card-hover glow-primary rounded-xl p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <Sparkles className="h-5 w-5 text-primary" aria-hidden="true" />
-              <h3 className="font-display font-semibold text-foreground">AI Resume Improvement</h3>
-            </div>
-            <p className="text-sm text-muted-foreground">Your resume can be improved by addressing formatting, keyword optimization and quantifying achievements.</p>
-            {isLoading ? <Skeleton className="mt-3 h-2 w-full rounded-full" /> : (
-              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-secondary" role="progressbar" aria-valuenow={summary?.ats_score ?? 0} aria-valuemin={0} aria-valuemax={100}>
-                <motion.div
-                  className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${summary?.ats_score ?? 0}%` }}
-                  transition={{ duration: 1, delay: 0.5, ease: "easeOut" }}
-                />
-              </div>
-            )}
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="glass-card glass-card-hover glow-accent rounded-xl p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <Target className="h-5 w-5 text-accent" aria-hidden="true" />
-              <h3 className="font-display font-semibold text-foreground">Interview Performance Trend</h3>
-            </div>
-            <p className="text-sm text-muted-foreground">Track your mock interview scores over time to measure readiness.</p>
-            {isLoading ? <Skeleton className="mt-3 h-2 w-full rounded-full" /> : (
-              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-secondary" role="progressbar" aria-valuenow={summary?.interview_score ?? 0} aria-valuemin={0} aria-valuemax={100}>
-                <motion.div
-                  className="h-full rounded-full bg-gradient-to-r from-accent to-chart-3"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${summary?.interview_score ?? 0}%` }}
-                  transition={{ duration: 1, delay: 0.6, ease: "easeOut" }}
-                />
-              </div>
-            )}
-          </motion.div>
-        </div>
-
-        {/* Charts */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          {[
-            { title: "ATS Score Trend", data: atsTrend, chart: (d: any) => (
-              <LineChart data={d}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} animationDuration={1500} />
-              </LineChart>
-            )},
-            { title: "Skill Gap Radar", data: radarData, chart: (d: any) => (
-              <RadarChart data={d}>
-                <PolarGrid stroke="hsl(var(--border))" />
-                <PolarAngleAxis dataKey="skill" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                <PolarRadiusAxis stroke="hsl(var(--border))" fontSize={10} />
-                <Radar dataKey="value" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.2} strokeWidth={2} animationDuration={1500} />
-              </RadarChart>
-            )},
-            { title: "Skill Growth", data: skillGrowth, chart: (d: any) => (
-              <BarChart data={d}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="skill" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                <Bar dataKey="count" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} animationDuration={1500} />
-              </BarChart>
-            )},
-            { title: "Career Progress", data: careerProgress, chart: (d: any) => (
-              <AreaChart data={d}>
-                <defs>
-                  <linearGradient id="progressGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--chart-3))" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(var(--chart-3))" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="week" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                <Area type="monotone" dataKey="score" stroke="hsl(var(--chart-3))" fill="url(#progressGrad)" strokeWidth={2} animationDuration={1500} />
-              </AreaChart>
-            )},
-          ].map((section, i) => (
-            <motion.div
-              key={section.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 + i * 0.1 }}
-              className="glass-card glass-card-hover rounded-xl p-6"
-            >
-              <h3 className="mb-4 font-display text-lg font-semibold">{section.title}</h3>
-              <div className="h-64" role="img" aria-label={`${section.title} chart`}>
-                {section.data ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    {section.chart(section.data)}
-                  </ResponsiveContainer>
-                ) : <Skeleton className="h-full w-full" />}
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        <section className="space-y-4">
-          <div>
-            <h2 className="font-display text-2xl font-semibold">Your Resumes</h2>
-            <p className="text-sm text-muted-foreground">Manage stored resumes and open their analysis.</p>
+        {/* 2. AI Next Best Actions & Quick Launchpad */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <NextBestActions actions={nextBestActions} />
           </div>
-          <ResumeList />
+          <div>
+            <QuickLaunchpad />
+          </div>
+        </div>
+
+        {/* 3. Performance Snapshot (4 KPI Cards) */}
+        <section aria-label="Career Performance Snapshot" className="space-y-4">
+          <h3 className="font-display text-lg font-semibold text-foreground tracking-tight">
+            Career Performance Snapshot
+          </h3>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              label="ATS Score"
+              value={rawAts}
+              suffix="%"
+              icon={Award}
+              statusLabel={
+                rawAts > 0
+                  ? rawAts >= 85
+                    ? "Excellent"
+                    : rawAts >= 70
+                    ? "Competitive"
+                    : "Needs Polish"
+                  : "Resume Needed"
+              }
+              statusVariant={
+                rawAts > 0
+                  ? rawAts >= 85
+                    ? "success"
+                    : rawAts >= 70
+                    ? "warning"
+                    : "destructive"
+                  : "default"
+              }
+              delta={
+                rawAts > 0
+                  ? rawAts >= 85
+                    ? "▲ Top 5% Candidate"
+                    : "▲ Optimization Available"
+                  : "Upload resume to calculate"
+              }
+              isLoading={isLoading}
+              delay={0.05}
+            />
+
+            <MetricCard
+              label="Tech Skills"
+              value={rawSkills}
+              suffix=" Verified"
+              icon={Brain}
+              statusLabel={rawSkills > 0 ? `${rawSkills} Verified Skills` : "No Verified Skills"}
+              statusVariant={rawSkills > 0 ? "success" : "default"}
+              delta={
+                rawSkills > 0
+                  ? "Profile competencies"
+                  : "Add in Profile / Upload Resume"
+              }
+              isLoading={isLoading}
+              delay={0.1}
+            />
+
+            <MetricCard
+              label="Interview Readiness"
+              value={rawInterview > 0 ? rawInterview : 0}
+              suffix={rawInterview > 0 ? "%" : ""}
+              icon={TrendingUp}
+              statusLabel={
+                rawInterview > 0
+                  ? rawInterview >= 75
+                    ? "Ready"
+                    : "Needs Practice"
+                  : "Not Measured Yet"
+              }
+              statusVariant={
+                rawInterview > 0
+                  ? rawInterview >= 75
+                    ? "success"
+                    : "warning"
+                  : "default"
+              }
+              emptyFallbackText="Take 5-min Mock"
+              delta={
+                rawInterview > 0 ? "▲ Benchmark Scored" : "Start Voice/Text Simulation"
+              }
+              isLoading={isLoading}
+              delay={0.15}
+            />
+
+            <MetricCard
+              label="Target Role Match"
+              value={rawRoleMatch > 0 ? rawRoleMatch : 0}
+              suffix={rawRoleMatch > 0 ? "%" : ""}
+              icon={Target}
+              statusLabel={
+                rawRoleMatch >= 80
+                  ? "Strong Match"
+                  : rawRoleMatch > 0
+                  ? "Good Foundation"
+                  : "Set in Onboarding"
+              }
+              statusVariant={
+                rawRoleMatch >= 80
+                  ? "success"
+                  : rawRoleMatch > 0
+                  ? "accent"
+                  : "default"
+              }
+              delta={targetRole.title}
+              isLoading={isLoading}
+              delay={0.2}
+            />
+          </div>
         </section>
+
+        {/* 4. Visual Intelligence (Career Progress Chart & Skill Gap vs Market Demand) */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <CareerProgressChart data={formattedProgressTrend} isLoading={isLoading} />
+          <SkillGapSection benchmarks={skillBenchmarks} />
+        </div>
+
+        {/* 5. Live Feeds: Active Resume Health & New Job Opportunities */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ActiveResumeCard resume={activeResume} atsScore={rawAts} />
+          <JobMatchPreview jobs={recentJobs} />
+        </div>
+
+        {/* 6. Career Progress Timeline */}
+        <CareerActivityTimeline maxItems={4} />
       </div>
     </PageTransition>
   );
