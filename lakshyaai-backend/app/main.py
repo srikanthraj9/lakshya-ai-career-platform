@@ -1,6 +1,7 @@
 import logging
+import os
 
-from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi import FastAPI, HTTPException, Request, Depends, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -17,38 +18,16 @@ if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
 
 @app.on_event("startup")
-def create_tables():
+def startup_event():
+    # In test mode or local SQLite, initialize tables for in-memory / local test suites
+    if os.environ.get("TESTING") == "true" or engine.dialect.name == "sqlite":
+        try:
+            Base.metadata.create_all(bind=engine)
+        except Exception as init_err:
+            logger.warning("Test schema initialization warning: %s", init_err)
+
+    # Bootstrap default seed data (admin & feature flags)
     try:
-        with engine.begin() as connection:
-            try:
-                connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-            except Exception as extension_error:
-                print(f"pgvector extension setup skipped: {extension_error}")
-
-        Base.metadata.create_all(bind=engine)
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_email_verified BOOLEAN DEFAULT FALSE"))
-            connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'user'"))
-            connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT FALSE"))
-            connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_reason TEXT"))
-            connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ"))
-            connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ"))
-            connection.execute(text("ALTER TABLE resumes ADD COLUMN IF NOT EXISTS file_name VARCHAR"))
-            connection.execute(text("ALTER TABLE resumes ADD COLUMN IF NOT EXISTS extracted_text TEXT"))
-            connection.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS title VARCHAR"))
-            connection.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS category VARCHAR"))
-            connection.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS demand_level VARCHAR"))
-            connection.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS core_skills JSONB"))
-            connection.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS advanced_skills JSONB"))
-            connection.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS average_salary DOUBLE PRECISION"))
-            connection.execute(text("UPDATE resumes SET file_name = original_filename WHERE file_name IS NULL"))
-            connection.execute(text("UPDATE resumes SET extracted_text = parsed_text WHERE extracted_text IS NULL"))
-            connection.execute(text("UPDATE roles SET title = name WHERE title IS NULL"))
-            connection.execute(text("UPDATE roles SET category = 'Software Engineering' WHERE category IS NULL"))
-            connection.execute(text("UPDATE roles SET demand_level = 'Medium' WHERE demand_level IS NULL"))
-            connection.execute(text("UPDATE roles SET core_skills = '[]'::jsonb WHERE core_skills IS NULL"))
-            connection.execute(text("UPDATE roles SET advanced_skills = '[]'::jsonb WHERE advanced_skills IS NULL"))
-
         from app.db.database import SessionLocal
         from app.services.admin_service import AdminService
         from app.services.feature_flag_service import FeatureFlagService
@@ -56,13 +35,11 @@ def create_tables():
         try:
             AdminService.bootstrap_admin_users(db)
             FeatureFlagService.seed_default_flags(db)
+            AdminService.backfill_oauth_providers(db)
         finally:
             db.close()
-    except Exception as startup_error:
-        if 'type "vector" does not exist' in str(startup_error).lower():
-            print("Skipping automatic table creation because pgvector is unavailable.")
-            return
-        raise
+    except Exception as data_err:
+        logger.warning("Startup data seeding deferred: %s", data_err)
 
 import uuid
 from app.core.security_middleware import security_and_rate_limit_middleware
@@ -91,9 +68,21 @@ async def security_and_telemetry_middleware(request: Request, call_next):
     return response
 
 
+@app.get("/")
+async def root():
+    return {
+        "service": "LakshyaAI Backend",
+        "status": "online",
+        "version": "v3.1.0-rc",
+        "docs_url": "/docs",
+        "health_url": "/api/health",
+    }
+
+
+@app.get("/health")
 @app.get("/api/health")
 async def health_check(request: Request):
-    logger.info("Health check hit on /api/health")
+    logger.info("Health check hit on %s", request.url.path)
     return HealthService.check_liveness()
 
 
@@ -105,9 +94,12 @@ async def release_info():
 
 
 @app.get("/api/health/ready")
-async def readiness_check(db: Session = Depends(get_db)):
+async def readiness_check(response: Response, db: Session = Depends(get_db)):
     logger.info("Readiness check hit on /api/health/ready")
-    return HealthService.check_readiness(db)
+    result = HealthService.check_readiness(db)
+    if not result.get("is_ready", False):
+        response.status_code = 503
+    return result
 
 
 @app.exception_handler(AppException)
@@ -161,4 +153,6 @@ app.include_router(api_router)
 
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="127.0.0.1", port=10000, reload=False)
+    port = int(os.environ.get("PORT", 10000))
+    host = os.environ.get("HOST", "0.0.0.0")
+    uvicorn.run("app.main:app", host=host, port=port, reload=False)

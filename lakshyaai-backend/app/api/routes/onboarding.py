@@ -1,8 +1,9 @@
 import logging
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.dependencies import get_current_user
 from app.db import models
@@ -17,6 +18,16 @@ router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
 logger = logging.getLogger("lakshyaai.onboarding")
 
 
+def _extract_meta(profile: Optional[models.UserCareerProfile]) -> dict:
+    if not profile or profile.primary_goals is None:
+        return {}
+    if isinstance(profile.primary_goals, dict):
+        return dict(profile.primary_goals)
+    if isinstance(profile.primary_goals, list):
+        return {"goals": profile.primary_goals}
+    return {}
+
+
 def _get_or_create_profile(db: Session, user: models.User) -> models.UserCareerProfile:
     profile = (
         db.query(models.UserCareerProfile)
@@ -28,12 +39,13 @@ def _get_or_create_profile(db: Session, user: models.User) -> models.UserCareerP
             user_id=user.id,
             onboarding_current_step=1,
             onboarding_completed=False,
-            primary_goals=[],
+            primary_goals={"goals": []},
         )
         db.add(profile)
         db.commit()
         db.refresh(profile)
     return profile
+
 
 
 def _sync_user_skills(db: Session, user: models.User, skill_names: List[str], source: str = "onboarding") -> None:
@@ -75,12 +87,15 @@ def _build_profile_response(db: Session, profile: models.UserCareerProfile, user
         .all()
     ]
 
+    meta = _extract_meta(profile)
+    goals = meta.get("goals", []) if isinstance(profile.primary_goals, dict) else (profile.primary_goals or [])
+
     return {
         "user_id": profile.user_id,
         "onboarding_current_step": profile.onboarding_current_step,
         "onboarding_completed": profile.onboarding_completed,
         "career_stage": profile.career_stage,
-        "primary_goals": profile.primary_goals or [],
+        "primary_goals": goals,
         "education_level": profile.education_level,
         "specialization": profile.specialization,
         "graduation_year": profile.graduation_year,
@@ -123,7 +138,10 @@ def save_onboarding_step(
     if payload.career_stage is not None:
         profile.career_stage = payload.career_stage
     if payload.primary_goals is not None:
-        profile.primary_goals = payload.primary_goals
+        meta = _extract_meta(profile)
+        meta["goals"] = payload.primary_goals
+        profile.primary_goals = dict(meta)
+        flag_modified(profile, "primary_goals")
     if payload.education_level is not None:
         profile.education_level = payload.education_level
     if payload.specialization is not None:
@@ -164,7 +182,10 @@ def complete_onboarding(
     if payload.career_stage is not None:
         profile.career_stage = payload.career_stage
     if payload.primary_goals is not None:
-        profile.primary_goals = payload.primary_goals
+        meta = _extract_meta(profile)
+        meta["goals"] = payload.primary_goals
+        profile.primary_goals = dict(meta)
+        flag_modified(profile, "primary_goals")
     if payload.education_level is not None:
         profile.education_level = payload.education_level
     if payload.specialization is not None:

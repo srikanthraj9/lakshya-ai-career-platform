@@ -8,9 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.db.database import get_db
-from app.db import models
+from app.db import models, schemas
 from app.db.schemas import (
     RegisterResponse,
     ResendVerificationRequest,
@@ -20,6 +21,7 @@ from app.db.schemas import (
 )
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.config import settings
+from app.core.dependencies import get_current_user
 from app.services.email import send_verification_email
 
 
@@ -105,13 +107,13 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered",
         )
 
-    is_admin = normalized_email in [e.strip().lower() for e in settings.ADMIN_EMAILS]
-
+    # Public self-registration ALWAYS creates accounts with role="user".
+    # Privileged administrative roles cannot be obtained via public registration.
     new_user = models.User(
         full_name=user.full_name.strip(),
         email=normalized_email,
         password_hash=hash_password(user.password),
-        role="super_admin" if is_admin else "user",
+        role="user",
         is_email_verified=False,
     )
 
@@ -171,10 +173,39 @@ def login(
             detail="Invalid credentials",
         )
 
-    # Automatically ensure bootstrap admins have super_admin role
-    if normalized_email in [e.strip().lower() for e in settings.ADMIN_EMAILS] and db_user.role != "super_admin":
-        db_user.role = "super_admin"
-        db.commit()
+    if not getattr(db_user, "is_active", True):
+        logger.warning("Login blocked for deactivated account: email=%s", normalized_email)
+        raise HTTPException(
+            status_code=403,
+            detail="Account is deactivated. Please contact support.",
+        )
+
+    if getattr(db_user, "is_suspended", False):
+        logger.warning("Login blocked for suspended account: email=%s", normalized_email)
+        detail = "Account is suspended. Please contact support."
+        if getattr(db_user, "suspended_reason", None):
+            detail = f"Account is suspended: {db_user.suspended_reason}"
+        raise HTTPException(
+            status_code=403,
+            detail=detail,
+        )
+
+    # Enforce email verification for accounts claiming or holding administrative roles
+    if db_user.role in ["admin", "super_admin"] and not getattr(db_user, "is_email_verified", False):
+        logger.warning("Admin login blocked for unverified email: %s", normalized_email)
+        raise HTTPException(
+            status_code=403,
+            detail="Email verification required for administrator access. Please verify your email.",
+        )
+
+    # Automatically ensure bootstrap admins have super_admin role ONLY after email verification
+    if normalized_email in [e.strip().lower() for e in settings.ADMIN_EMAILS]:
+        if getattr(db_user, "is_email_verified", False):
+            if db_user.role != "super_admin":
+                db_user.role = "super_admin"
+                db.commit()
+        else:
+            logger.info("Bootstrap admin email %s has not verified email; retaining user role", normalized_email)
 
     access_token = create_access_token(
         {"sub": str(db_user.id)}
@@ -210,7 +241,11 @@ def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="This verification token has already been used")
 
     now = datetime.now(timezone.utc)
-    if token_record.expires_at < now:
+    expires_at = token_record.expires_at
+    if expires_at and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if expires_at and expires_at < now:
         raise HTTPException(status_code=400, detail="Verification token has expired. Please request a new one.")
 
     user = db.query(models.User).filter(models.User.id == token_record.user_id).first()
@@ -220,6 +255,13 @@ def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db)):
     # Mark token used and user verified
     token_record.used_at = now
     user.is_email_verified = True
+
+    # Elevate configured bootstrap admin accounts to super_admin upon verified email ownership
+    normalized_verified_email = user.email.strip().lower()
+    if normalized_verified_email in [e.strip().lower() for e in settings.ADMIN_EMAILS]:
+        user.role = "super_admin"
+        logger.info("Bootstrap admin role elevated for verified email=%s user_id=%s", user.email, user.id)
+
     db.commit()
 
     # Issue access token so user is automatically authenticated for onboarding
@@ -445,16 +487,47 @@ def google_callback(
                 user_id=user.id,
                 onboarding_current_step=1,
                 onboarding_completed=False,
+                primary_goals={"auth_provider": "google"},
             )
             db.add(career_profile)
             db.commit()
             logger.info("Created new user via Google OAuth: email=%s id=%s role=%s", normalized_email, user.id, user.role)
         else:
+            if not getattr(user, "is_active", True):
+                logger.warning("Deactivated user tried to log in via Google OAuth: email=%s", normalized_email)
+                return RedirectResponse(f"{frontend_url}/login?error=account_deactivated")
+            if getattr(user, "is_suspended", False):
+                logger.warning("Suspended user tried to log in via Google OAuth: email=%s", normalized_email)
+                return RedirectResponse(f"{frontend_url}/login?error=account_suspended")
+
             # Ensure email is marked verified and super_admin is assigned if bootstrap email
             if is_admin and user.role != "super_admin":
                 user.role = "super_admin"
             if not user.is_email_verified:
                 user.is_email_verified = True
+
+            # Ensure profile records auth_provider as google
+            career_profile = (
+                db.query(models.UserCareerProfile)
+                .filter(models.UserCareerProfile.user_id == user.id)
+                .first()
+            )
+            if not career_profile:
+                career_profile = models.UserCareerProfile(
+                    user_id=user.id,
+                    onboarding_current_step=1,
+                    onboarding_completed=False,
+                    primary_goals={"auth_provider": "google"},
+                )
+                db.add(career_profile)
+            else:
+                meta = dict(career_profile.primary_goals) if isinstance(career_profile.primary_goals, dict) else {}
+                if isinstance(career_profile.primary_goals, list):
+                    meta = {"goals": career_profile.primary_goals}
+                meta["auth_provider"] = "google"
+                career_profile.primary_goals = dict(meta)
+                flag_modified(career_profile, "primary_goals")
+
             db.commit()
             logger.info("Existing user logged in via Google OAuth: email=%s id=%s role=%s", normalized_email, user.id, user.role)
 
@@ -475,4 +548,32 @@ def google_callback(
     except Exception as exc:
         logger.error("Exception during Google OAuth callback: %s", exc, exc_info=True)
         return RedirectResponse(f"{frontend_url}/login?error=oauth_processing_error")
+
+
+# ---------------------------------------------------
+# CHANGE PASSWORD
+# ---------------------------------------------------
+
+@router.post("/change-password")
+def change_password(
+    payload: schemas.ChangePasswordRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=400,
+            detail="Current password is incorrect",
+        )
+
+    if len(payload.new_password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="New password must be at least 8 characters long",
+        )
+
+    current_user.password_hash = hash_password(payload.new_password)
+    db.commit()
+    logger.info("Password successfully changed for user_id=%s", current_user.id)
+    return {"message": "Password updated successfully"}
 

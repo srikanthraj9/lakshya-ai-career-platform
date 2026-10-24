@@ -9,6 +9,7 @@ export interface User {
   is_email_verified?: boolean;
   onboarding_completed?: boolean;
   onboarding_current_step?: number;
+  auth_provider?: string;
   created_at: string;
 }
 
@@ -157,6 +158,7 @@ export interface AnalyticsSummary {
   total_resumes: number;
   skill_count: number;
   interview_score: number;
+  role_match_score?: number | null;
 }
 
 export interface ATSTrend {
@@ -395,6 +397,7 @@ export interface VoiceChatMessage {
 export interface VoiceChatResponse {
   transcript: string;
   reply: string;
+  session_id?: string;
 }
 
 export interface LiveJob {
@@ -527,7 +530,7 @@ export interface AdminUserDetailResponse {
   is_email_verified: boolean;
   onboarding_completed: boolean;
   target_role?: string | null;
-  career_profile?: Record<string, any> | null;
+  career_profile?: Record<string, unknown> | null;
   skills: string[];
   resumes_count: number;
   latest_ats_score?: number | null;
@@ -621,7 +624,7 @@ export interface AdminAuditLog {
   target_user_id?: string | null;
   resource_type?: string | null;
   resource_id?: string | null;
-  action_metadata: Record<string, any>;
+  action_metadata: Record<string, unknown>;
   ip_address?: string | null;
   created_at: string;
 }

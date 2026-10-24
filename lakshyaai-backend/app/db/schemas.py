@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal, Optional
 from uuid import UUID
 
@@ -33,6 +33,7 @@ class UserResponse(BaseModel):
     is_email_verified: bool = False
     onboarding_completed: bool = False
     onboarding_current_step: int = 1
+    auth_provider: Optional[str] = "password"
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -268,6 +269,7 @@ class ResumeRewriteResponse(BaseModel):
 class RoadmapRequest(BaseModel):
     target_role: str = Field(min_length=1)
     experience_level: str = Field(min_length=1)
+    current_skills: list[str] | None = None
 
     @model_validator(mode="after")
     def normalize_fields(self) -> "RoadmapRequest":
@@ -277,6 +279,8 @@ class RoadmapRequest(BaseModel):
             raise ValueError("target_role is required")
         if not self.experience_level:
             raise ValueError("experience_level is required")
+        if self.current_skills is not None:
+            self.current_skills = [s.strip() for s in self.current_skills if isinstance(s, str) and s.strip()]
         return self
 
 
@@ -284,10 +288,15 @@ class RoadmapStep(BaseModel):
     step: str
     resources: list[str] = Field(default_factory=list)
     duration: str = ""
+    stage: Optional[str] = None
+    completion_criteria: Optional[str] = None
 
 
 class RoadmapResponse(BaseModel):
     roadmap: list[RoadmapStep] = Field(default_factory=list)
+    track: str = "general"
+    is_personalized: bool = False
+    role_supported: bool = True
 
 
 class RoleCreate(BaseModel):
@@ -423,6 +432,8 @@ class InterviewStartRequest(BaseModel):
     role: str = Field(min_length=1)
     difficulty: str = Field(min_length=1)
     mode: str = Field(min_length=1)
+    skills: list[str] | None = None
+    job_description: str | None = None
 
     @model_validator(mode="after")
     def normalize_fields(self) -> "InterviewStartRequest":
@@ -435,6 +446,10 @@ class InterviewStartRequest(BaseModel):
             raise ValueError("difficulty must be easy, medium, or hard")
         if self.mode not in {"text", "voice"}:
             raise ValueError("mode must be text or voice")
+        if self.skills is not None:
+            self.skills = [s.strip() for s in self.skills if isinstance(s, str) and s.strip()]
+        if self.job_description:
+            self.job_description = self.job_description.strip()
         return self
 
 
@@ -522,6 +537,7 @@ class VoiceChatMessage(BaseModel):
 class VoiceChatResponse(BaseModel):
     transcript: str
     reply: str
+    session_id: Optional[UUID] = None
 
 
 class JobListingResponse(BaseModel):
@@ -560,6 +576,7 @@ class CopilotChatMessage(BaseModel):
 class CopilotChatRequest(BaseModel):
     messages: list[CopilotChatMessage] = Field(min_length=1)
     conversation_id: Optional[UUID] = None
+    mode: Optional[str] = "career"
 
 
 class CopilotResponse(BaseModel):
@@ -1240,7 +1257,7 @@ class AIUsageStats(BaseModel):
 class SystemHealthResponse(BaseModel):
     status: str  # healthy, degraded, unhealthy
     services: dict = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class FeatureFlagCreate(BaseModel):
@@ -1405,10 +1422,101 @@ class UserFeedbackResponse(BaseModel):
     status: str
     created_at: datetime
 
+
+# =========================
+# PROFILE, SETTINGS & SKILL PASSPORT SCHEMAS
+# =========================
+
+class UserSkillCreate(BaseModel):
+    skill_name: str = Field(min_length=1, max_length=120)
+    skill_category: Optional[str] = "technical"
+    source: Optional[str] = "manual"
+    confidence: Optional[float] = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class UserSkillResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    skill_name: str
+    skill_category: Optional[str] = "technical"
+    source: str = "manual"
+    confidence: float = 1.0
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=8)
 
 
+class UserProfileUpdateRequest(BaseModel):
+    full_name: Optional[str] = None
+    target_role: Optional[str] = None
+    experience_level: Optional[str] = None
+    education_level: Optional[str] = None
+    college: Optional[str] = None
+    graduation_year: Optional[str] = None
+    career_stage: Optional[str] = None
+    primary_goals: Optional[list[str]] = None
+    headline: Optional[str] = None
+    bio: Optional[str] = None
+    location: Optional[str] = None
+    work_preference: Optional[str] = None
+    employment_type: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    github_url: Optional[str] = None
+
+
+class UserSettingsUpdateRequest(BaseModel):
+    notification_preferences: Optional[dict] = None
+    privacy_settings: Optional[dict] = None
+    appearance_settings: Optional[dict] = None
+    career_preferences: Optional[dict] = None
+
+
+class UserSettingsResponse(BaseModel):
+    notification_preferences: dict = Field(default_factory=dict)
+    privacy_settings: dict = Field(default_factory=dict)
+    appearance_settings: dict = Field(default_factory=dict)
+    career_preferences: dict = Field(default_factory=dict)
+
+
+class PassportShareResponse(BaseModel):
+    is_public: bool
+    share_token: Optional[str] = None
+    share_url: Optional[str] = None
+
+
+class SharedSkillPassportResponse(BaseModel):
+    full_name: str
+    headline: Optional[str] = None
+    target_role: Optional[str] = None
+    experience_level: Optional[str] = None
+    skills: list[dict] = Field(default_factory=list)
+    alignment_score: Optional[float] = None
+    shared_at: datetime
+
+
+class AccountDeletionRequest(BaseModel):
+    confirmation: str = Field(..., description="Must explicitly be 'DELETE' to confirm irreversible deletion")
+    password: Optional[str] = Field(None, description="Current password for password-authenticated accounts")
+    deletion_token: Optional[str] = Field(None, description="Short-lived, single-use authorization token for OAuth accounts")
+
+
+class DeletionTokenResponse(BaseModel):
+    deletion_token: str
+    expires_in_seconds: int = 300
+    auth_provider: str
+    message: str = "Short-lived deletion authorization token issued. Single-use and valid for 5 minutes."
+
+
+class AccountDeletionResponse(BaseModel):
+    success: bool = True
+    message: str = "Account and all associated personal data have been permanently deleted."
+    deleted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

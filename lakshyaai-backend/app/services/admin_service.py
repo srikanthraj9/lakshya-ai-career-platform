@@ -24,14 +24,39 @@ BOOTSTRAP_ADMIN_EMAILS = [
 class AdminService:
     @staticmethod
     def bootstrap_admin_users(db: Session):
-        """Idempotently elevate configured bootstrap emails to super_admin."""
+        """Idempotently elevate configured bootstrap emails to super_admin only if email is verified."""
         for email in BOOTSTRAP_ADMIN_EMAILS:
             user = db.query(models.User).filter(func.lower(models.User.email) == email).first()
-            if user:
+            if user and getattr(user, "is_email_verified", False):
                 if user.role != "super_admin":
                     user.role = "super_admin"
                     db.commit()
-                    logger.info(f"[AdminBootstrap] Bootstrapped {email} to super_admin role.")
+                    logger.info(f"[AdminBootstrap] Bootstrapped verified {email} to super_admin role.")
+
+    @staticmethod
+    def backfill_oauth_providers(db: Session):
+        """Idempotently ensure known Google OAuth accounts have auth_provider set in primary_goals."""
+        from sqlalchemy.orm.attributes import flag_modified
+        known_oauth_emails = [
+            "srikanthrajuppalapati999@gmail.com",
+        ]
+        for email in known_oauth_emails:
+            user = db.query(models.User).filter(func.lower(models.User.email) == email.lower()).first()
+            if user:
+                profile = db.query(models.UserCareerProfile).filter(models.UserCareerProfile.user_id == user.id).first()
+                if profile:
+                    meta = {}
+                    if isinstance(profile.primary_goals, dict):
+                        meta = dict(profile.primary_goals)
+                    elif isinstance(profile.primary_goals, list):
+                        meta = {"goals": profile.primary_goals}
+                    if meta.get("auth_provider") != "google":
+                        meta["auth_provider"] = "google"
+                        profile.primary_goals = meta
+                        flag_modified(profile, "primary_goals")
+                        db.commit()
+                        logger.info(f"[OAuthBackfill] Backfilled auth_provider='google' for user {email}")
+
 
     @staticmethod
     def list_users(
