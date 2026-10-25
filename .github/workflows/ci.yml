@@ -51,6 +51,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Initialize Test Database Schema
+        working-directory: ./lakshyaai-backend
+        env:
+          TESTING: "true"
+          DATABASE_URL: "sqlite:///./lakshyaai.db"
+        run: python -c "from app.db import models; from app.db.database import create_tables; create_tables()"
+
       - name: Run Backend Test Suite
         working-directory: ./lakshyaai-backend
         env:

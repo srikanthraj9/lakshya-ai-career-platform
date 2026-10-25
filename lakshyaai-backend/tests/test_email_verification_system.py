@@ -31,6 +31,9 @@ def get_error_message(response) -> str:
 class TestEmailVerificationSystem(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        from app.db.database import engine, create_tables
+        if engine.dialect.name == "sqlite":
+            create_tables()
         cls.client = TestClient(app)
 
     def setUp(self):

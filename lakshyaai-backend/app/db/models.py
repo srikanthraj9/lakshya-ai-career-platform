@@ -14,9 +14,10 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.types import JSON
 from pgvector.sqlalchemy import Vector
+import os
 import uuid
 
-from app.db.database import Base
+from app.db.database import Base, engine
 
 
 # =========================
@@ -1255,7 +1256,11 @@ class UserFeedback(Base):
     user = relationship("User", foreign_keys=[user_id])
 
 
-
-
-
-
+# =========================================================================
+# SQLite / Test Schema Auto-Initialization
+# =========================================================================
+if engine.dialect.name == "sqlite" or os.environ.get("TESTING") == "true":
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        pass
