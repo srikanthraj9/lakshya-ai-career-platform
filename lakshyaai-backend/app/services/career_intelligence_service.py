@@ -16,7 +16,10 @@ class CareerIntelligenceService:
         ).order_by(models.Resume.created_at.desc()).first()
 
         ats_score = resume.ats_score if resume and resume.ats_score is not None else 78.0
-        resume_skills = resume.skills if resume and resume.skills else ["React", "TypeScript", "Node.js", "Python", "FastAPI", "PostgreSQL", "Tailwind CSS", "Git"]
+        if resume and resume.skills:
+            resume_skills = [s.skill_name if hasattr(s, "skill_name") else str(s) for s in resume.skills]
+        else:
+            resume_skills = ["React", "TypeScript", "Node.js", "Python", "FastAPI", "PostgreSQL", "Tailwind CSS", "Git"]
 
         # 2. Fetch Active Goal
         active_goal = db.query(models.CareerGoal).filter(

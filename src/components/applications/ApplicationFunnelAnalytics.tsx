@@ -57,20 +57,20 @@ export function ApplicationFunnelAnalytics({
       </div>
 
       {/* 2. Outcome Learning Insights */}
-      {outcomeInsights && outcomeInsights.length > 0 && (
-        <div className="glass-card rounded-3xl p-6 space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-border/50">
-            <div className="flex items-center gap-2">
-              <Brain className="h-4 w-4 text-accent" />
-              <h3 className="font-display text-base font-bold text-foreground">
-                Outcome-Driven Learning Insights
-              </h3>
-            </div>
-            <StatusBadge variant="ai" dot>
-              AI Pattern Feedback
-            </StatusBadge>
+      <div className="glass-card rounded-3xl p-6 space-y-4">
+        <div className="flex items-center justify-between pb-2 border-b border-border/50">
+          <div className="flex items-center gap-2">
+            <Brain className="h-4 w-4 text-accent" />
+            <h3 className="font-display text-base font-bold text-foreground">
+              Outcome-Driven Learning Insights
+            </h3>
           </div>
+          <StatusBadge variant="ai" dot>
+            AI Pattern Feedback
+          </StatusBadge>
+        </div>
 
+        {outcomeInsights && outcomeInsights.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2">
             {outcomeInsights.map((insight) => (
               <div
@@ -89,8 +89,16 @@ export function ApplicationFunnelAnalytics({
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="rounded-2xl border border-dashed border-border/60 bg-secondary/10 p-6 text-center space-y-2">
+            <Brain className="h-6 w-6 text-muted-foreground mx-auto" />
+            <p className="text-xs font-semibold text-foreground">No Outcome Learning Insights Yet</p>
+            <p className="text-[11px] text-muted-foreground max-w-md mx-auto">
+              Log interview debriefs from your applications to generate automated pattern detection and pinpoint candidate strengths and growth areas.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

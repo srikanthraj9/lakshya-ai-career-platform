@@ -5,16 +5,18 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from app.db.database import get_db
+from app.db.database import get_db, engine
 from app.db import models, schemas
 from app.db.schemas import (
     RegisterResponse,
     ResendVerificationRequest,
+    ResendVerificationResponse,
     Token,
     UserCreate,
     VerifyEmailRequest,
@@ -47,7 +49,7 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def _generate_verification_token(db: Session, user: models.User) -> str:
+def _generate_verification_token(db: Session, user: models.User):
     raw_token = secrets.token_urlsafe(32)
     token_hash = _hash_token(raw_token)
     expires_at = datetime.now(timezone.utc) + timedelta(hours=VERIFICATION_TOKEN_EXPIRE_HOURS)
@@ -72,14 +74,14 @@ def _generate_verification_token(db: Session, user: models.User) -> str:
         user.email,
     )
 
-    # Dispatch email (live SMTP if configured, console logged if in dev)
-    send_verification_email(
+    # Dispatch email (live SMTP if configured)
+    delivery_result = send_verification_email(
         email=user.email,
         full_name=user.full_name or "User",
         raw_token=raw_token,
     )
 
-    return raw_token
+    return raw_token, delivery_result
 
 
 
@@ -130,17 +132,31 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     db.add(career_profile)
     db.commit()
 
-    # Generate verification token
-    _generate_verification_token(db, new_user)
+    # Generate verification token and dispatch email
+    _, delivery_result = _generate_verification_token(db, new_user)
 
-    logger.info("Register success for email=%s user_id=%s role=%s", normalized_email, new_user.id, new_user.role)
+    logger.info(
+        "Register success for email=%s user_id=%s role=%s email_sent=%s delivery_status=%s",
+        normalized_email,
+        new_user.id,
+        new_user.role,
+        bool(delivery_result.success),
+        delivery_result.status,
+    )
+
+    if delivery_result.success:
+        message = "Account created successfully. Please verify your email to begin your career journey."
+    else:
+        message = "Account created successfully, but the verification email could not be delivered. Please click Resend on the verification page."
 
     return {
         "id": new_user.id,
         "full_name": new_user.full_name,
         "email": new_user.email,
         "is_email_verified": False,
-        "message": "Account created successfully. Please verify your email to begin your career journey.",
+        "message": message,
+        "email_sent": bool(delivery_result.success),
+        "delivery_status": delivery_result.status,
     }
 
 
@@ -230,9 +246,12 @@ def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Verification token is required")
 
     token_hash = _hash_token(raw_token)
-    token_record = db.query(models.EmailVerificationToken).filter(
+    query = db.query(models.EmailVerificationToken).filter(
         models.EmailVerificationToken.token_hash == token_hash,
-    ).first()
+    )
+    if hasattr(engine, "dialect") and engine.dialect.name == "postgresql":
+        query = query.with_for_update()
+    token_record = query.first()
 
     if not token_record:
         raise HTTPException(status_code=400, detail="Invalid verification token")
@@ -282,7 +301,7 @@ def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db)):
 # RESEND VERIFICATION
 # ---------------------------------------------------
 
-@router.post("/resend-verification")
+@router.post("/resend-verification", response_model=ResendVerificationResponse)
 def resend_verification(payload: ResendVerificationRequest, db: Session = Depends(get_db)):
     normalized_email = _normalize_email(payload.email)
     user = _get_user_by_email(db, normalized_email)
@@ -292,6 +311,8 @@ def resend_verification(payload: ResendVerificationRequest, db: Session = Depend
         return {
             "success": True,
             "message": "If an account with this email exists, a verification link has been sent.",
+            "email_sent": True,
+            "delivery_status": "sent",
         }
 
     if user.is_email_verified:
@@ -310,7 +331,10 @@ def resend_verification(payload: ResendVerificationRequest, db: Session = Depend
 
     if latest_token and latest_token.created_at:
         now = datetime.now(timezone.utc)
-        elapsed = (now - latest_token.created_at.replace(tzinfo=timezone.utc)).total_seconds()
+        created_at = latest_token.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        elapsed = (now - created_at).total_seconds()
         if elapsed < RESEND_COOLDOWN_SECONDS:
             remaining = int(RESEND_COOLDOWN_SECONDS - elapsed)
             raise HTTPException(
@@ -318,11 +342,24 @@ def resend_verification(payload: ResendVerificationRequest, db: Session = Depend
                 detail=f"Please wait {remaining} seconds before requesting another verification email.",
             )
 
-    _generate_verification_token(db, user)
+    _, delivery_result = _generate_verification_token(db, user)
+
+    if not delivery_result.success:
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY if delivery_result.status != "unconfigured" else status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "success": False,
+                "message": "Unable to deliver verification email at this time. Please try again in a few moments.",
+                "email_sent": False,
+                "delivery_status": delivery_result.status,
+            },
+        )
 
     return {
         "success": True,
         "message": "A new verification email has been sent. Please check your inbox.",
+        "email_sent": True,
+        "delivery_status": "sent",
     }
 
 

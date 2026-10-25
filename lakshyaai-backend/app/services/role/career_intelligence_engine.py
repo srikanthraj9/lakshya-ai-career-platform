@@ -545,6 +545,7 @@ class CareerIntelligenceEngine:
         cls,
         matches: list[dict[str, object]],
         resume_skills: Iterable[models.ResumeSkill],
+        target_role: str | None = None,
     ) -> dict[str, object]:
         if not matches:
             return {
@@ -561,6 +562,14 @@ class CareerIntelligenceEngine:
             }
 
         top_match = matches[0]
+        if target_role:
+            target_key = cls.canonical_role_key(target_role)
+            for m in matches:
+                m_key = str(m.get("canonical_role_key") or cls.canonical_role_key(str(m.get("role_name", ""))))
+                if m_key == target_key or target_key in m_key:
+                    top_match = m
+                    break
+
         normalized_resume_skills = cls._normalize_skill_map(resume_skills, exclude_related=True)
         confidence = cls.confidence_for_score(int(top_match.get("score", 0)))
         return {

@@ -30,6 +30,8 @@ export interface RegisterResponse {
   email?: string;
   is_email_verified?: boolean;
   message?: string;
+  email_sent?: boolean;
+  delivery_status?: string;
 }
 
 export interface VerifyEmailPayload {
@@ -51,6 +53,8 @@ export interface ResendVerificationPayload {
 export interface ResendVerificationResponse {
   success: boolean;
   message: string;
+  email_sent?: boolean;
+  delivery_status?: string;
 }
 
 export interface CareerProfile {
@@ -122,6 +126,7 @@ export interface ResumeListItem {
   id: string;
   file_name: string;
   created_at: string;
+  ats_score?: number | null;
 }
 
 export interface ResumeDetailFeedback {
@@ -305,19 +310,40 @@ export interface CopilotResponse {
   reply: string;
 }
 
+export interface RoadmapResource {
+  name: string;
+  url: string;
+}
+
 export interface RoadmapStep {
   step: string;
-  resources: string[];
+  title?: string;
+  resources: (string | RoadmapResource)[];
   duration: string;
+  stage?: string;
+  skills?: string[];
+  why_it_matters?: string;
+  prerequisites?: string[];
+  beginner_friendly_explanation?: string;
+  practical_project?: string;
+  checklist?: string[];
+  completion_criteria?: string;
 }
 
 export interface RoadmapRequest {
   target_role: string;
   experience_level: string;
+  current_skills?: string[];
+  missing_skills?: string[];
 }
 
 export interface RoadmapResponse {
   roadmap: RoadmapStep[];
+  track?: string;
+  is_personalized?: boolean;
+  role_supported?: boolean;
+  recommended_next_action?: string;
+  estimated_total_duration?: string;
 }
 
 export interface ResumeRewriteEducationEntry {

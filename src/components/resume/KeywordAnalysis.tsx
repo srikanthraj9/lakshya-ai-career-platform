@@ -11,10 +11,12 @@ interface KeywordAnalysisProps {
 }
 
 export function KeywordAnalysis({
-  skills,
-  missingSkills = ["Docker", "Redis", "Kubernetes", "CI/CD"],
+  skills: rawSkills,
+  missingSkills: rawMissingSkills = ["Docker", "Redis", "Kubernetes", "CI/CD"],
   onOptimize,
 }: KeywordAnalysisProps) {
+  const skills = Array.isArray(rawSkills) ? rawSkills : [];
+  const missingSkills = Array.isArray(rawMissingSkills) ? rawMissingSkills : [];
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">

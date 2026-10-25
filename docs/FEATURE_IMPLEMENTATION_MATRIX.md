@@ -1,0 +1,40 @@
+# Lakshya AI — Feature Implementation & Verification Matrix
+
+**Audit Date:** 2026-10-18  
+**Audit Scope:** Complete Platform Capabilities  
+
+---
+
+## Status Classification Legend
+1. **Implemented and Verified:** Fully operational with authentic logic, database persistence, and verified tests.
+2. **Implemented but Inadequately Tested:** Code exists and executes, but tests rely primarily on mocks or lack integration coverage.
+3. **Partially Implemented:** Core scaffolding exists, but key functionality or integration is missing.
+4. **Mocked, Hardcoded, or Simulated:** Feature relies on static dictionaries, heuristic calculations, or fake fallback data while claiming AI/dynamic functionality.
+5. **Broken:** Implementation exists but fails at runtime due to code defects or environment limitations.
+6. **Not Implemented:** Feature is documented or referenced in UI, but backend/database code does not exist.
+
+---
+
+## Platform Feature Matrix
+
+| Feature Name | Frontend Implementation | Backend Implementation | Database Persistence | AI / External Dependencies | Test Verification Evidence | Implementation Status | Known Limitations |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Authentication & Registration** | `src/pages/RegisterPage.tsx`, `LoginPage.tsx`, `AuthContext.tsx` | `app/api/routes/auth.py` | `User`, `EmailVerificationToken` | Bcrypt, Python-Jose, SMTP | 14 security & auth tests passed | **Implemented and Verified** | Admin auto-grant on registration lacks email verification (`SEC-02`). No refresh token (`SEC-04`). |
+| **Google OAuth Login** | `src/pages/AuthCallbackPage.tsx` | `app/api/routes/auth.py:google_callback` | `User` | Google OAuth2 API | Inactive account redirect test passed; live OAuth unexercised | **Implemented but Inadequately Tested** | OAuth credentials in git history require manual rotation (`SEC-01`). Live integration test missing (`TEST-02`). |
+| **Candidate Onboarding** | `src/pages/OnboardingPage.tsx` | `app/api/routes/onboarding.py` | `UserCareerProfile` | None | Flow integration test passed | **Implemented and Verified** | Steps correctly persist and validate onboarding progression. |
+| **Resume Upload & PDF Parsing** | `src/pages/ResumeUploadPage.tsx` | `app/api/routes/resume.py:upload_resume` | `Resume`, `ResumeSkill` | `pdfplumber`, `pypdfium2` | `test_resume_flow.py` passed | **Implemented and Verified** | Stored on local container filesystem (`DEVOPS-02`). Fails on ephemeral container restart. |
+| **ATS Score & Breakdown** | `src/pages/ResumeViewPage.tsx` | `app/services/resume/ats_engine.py` | `ResumeATSBreakdown` | Deterministic heuristic rules | Verified via unit tests | **Implemented and Verified (Heuristic)** | Rule-based regex/keyword calculation, not an LLM evaluation. Accurate for ATS syntax checks. |
+| **Resume Rewrite & LaTeX Export** | `src/pages/ResumeRewritePage.tsx` | `app/services/resume/rewrite_engine.py`, `latex_compiler.py` | `ResumeRewrite` | LLM JSON + Local `pdflatex` | Test suite passed locally | **Partially Implemented / Broken in Docker** | Backend Docker container lacks `pdflatex` binary (`DEVOPS-01`). Crashes in production container. |
+| **Vector Similarity & Role Matching** | `src/pages/RoleAlignmentPage.tsx` | `app/services/role/career_intelligence_engine.py` | `ResumeEmbedding`, `RoleEmbedding` | Pgvector, OpenAI / OpenRouter embeddings | Role ranking unit tests passed | **Partially Implemented / Simulated Fallback** | Missing HNSW vector index (`DATA-02`). Silently falls back to SHA256 token hashing when API key is missing (`AI-05`). |
+| **Career Roadmap Generation** | `src/pages/RoadmapPage.tsx` | `app/services/roadmap/roadmap_engine.py` | `RoadmapProgress` | None (Static Dictionary) | Progress persistence tests passed | **Mocked, Hardcoded, or Simulated** | 100% hardcoded static dictionary (`ROLE_ROADMAPS`) (`AI-03`). Zero dynamic AI generation. |
+| **Mock Interview (Text Mode)** | `src/pages/InterviewStudioPage.tsx`, `TextInterviewSession.tsx` | `app/services/interview/session_manager.py` | `InterviewSession`, `InterviewMessage` | None (Heuristic Map) | Session lifecycle tests passed | **Mocked, Hardcoded, or Simulated** | STAR evaluation is word count + 6 keywords (`AI-01`). Questions are static (`AI-02`). Lacks concurrency locking (`BUG-01`). |
+| **Voice Interview Studio** | `src/pages/VoiceInterviewPage.tsx`, `VoiceInterviewSession.tsx` | `app/api/routes/voice.py`, `chat_service.py` | None (Transient React State) | Web Speech API, OpenAI Whisper, OpenRouter | Voice test probes pass; end-to-end unverified | **Partially Implemented / Unpersisted** | Session transcripts and scores are never saved to database (`FE-01`). Whisper and scoring use mismatched provider keys (`AI-06`). |
+| **AI Career Copilot** | `src/pages/CopilotPage.tsx` | `app/api/routes/copilot.py`, `chat_service.py` | `CopilotConversation`, `CopilotMessage` | OpenRouter (`gpt-4o-mini`) | Mocked provider test passed | **Partially Implemented / Disconnected Context** | Ignores candidate resume and profile context (`AI-04`). Hardcoded OpenRouter only. Silent static fallback on error. Raw `print()` logs data (`LOG-01`). |
+| **Job Application Tracker** | `src/pages/ApplicationTrackerPage.tsx`, `ApplicationContext.tsx` | `app/api/routes/applications.py` | `JobApplication`, `ApplicationEvent`, `InterviewDebrief` | None | Application flow & IDOR matrix passed | **Implemented and Verified** | Full CRUD, stage progression, debrief tracking, and timeline audit events verified. |
+| **Live Remote Jobs Feed** | `src/pages/LiveJobsPage.tsx` | `app/services/jobs/job_provider.py` | None (In-memory 10m cache) | Remotive Remote Jobs API | Unit parser tests passed | **Implemented but Inadequately Tested** | In-memory cache not shared across Uvicorn workers (`PERF-02`). Outages from Remotive trigger 500 error (`API-01`). |
+| **Career Intelligence Overview** | `src/pages/CareerIntelligencePage.tsx`, `DashboardPage.tsx` | `app/services/career_intelligence_service.py` | `CareerRecommendation`, `CareerGoal` | RecommendationEngine | `test_intelligence.py` passed | **Partially Implemented / Fake Injected Data** | Injects synthetic 78.0 ATS score and fake skills if user has no resume (`DATA-04`). Frontend context hardcodes 40 roadmap score (`FE-03`). |
+| **Administrator Dashboard & User 360** | `src/pages/admin/AdminDashboardPage.tsx`, `AdminUsersPage.tsx` | `app/api/routes/admin.py:dashboard, users` | `User`, `UserCareerProfile`, `Resume` | None | Admin auth & permission tests passed | **Implemented and Verified** | Overview statistics, candidate search, filtering, and 360 profile inspection verified. |
+| **Admin Database Explorer & Mutations** | `src/pages/admin/AdminDatabasePage.tsx` | `app/api/routes/admin.py:tables, mutate` | `TABLE_REGISTRY` (All 37 models) | None | Admin audit atomicity tests passed | **Implemented and Verified** | Safe field masking, immutable field enforcement, typed confirmation for destructive actions, and audit diffs. |
+| **View-As Candidate Simulation Mode** | `src/components/admin/ViewAsBanner.tsx` | `app/services/simulation_service.py` | `AdminSimulationSession` | None | Session token issuance & global block tests passed | **Broken for Candidate Workflows** | Simulation token is ignored by `get_current_user` (`ARCH-01`). Admin sees own empty records instead of candidate data. |
+| **Database Migrations & Evolution** | None (CLI / Runtime) | Imperative `@app.on_event("startup")` | PostgreSQL Schema | None | SQLite memory harness verified | **Broken / Missing Tooling** | `alembic.ini` is empty 0-byte file (`DATA-01`). Schema DDL runs imperatively against transaction pooler. Zero RLS policies (`SEC-03`). |
+| **Disaster Recovery & Backup** | `scripts/backup_database.py`, `restore_database.py` | CLI Python Scripts | PostgreSQL Dumps | `pg_dump`, `psql` | Guardrail tests passed | **Implemented and Verified** | Guardrails block destructive execution against Supabase. Verified local backup creation and checksum validation. |

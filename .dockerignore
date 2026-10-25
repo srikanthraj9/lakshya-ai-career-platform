@@ -1,0 +1,20 @@
+# Version control
+.git
+.gitignore
+
+# Environment & credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Node build artifacts
+node_modules/
+dist/
+build/
+.npm
+*.log
+
+# Backend files
+lakshyaai-backend/

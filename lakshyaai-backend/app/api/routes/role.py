@@ -15,11 +15,14 @@ from app.db.schemas import (
     RoleResponse,
     RoleSkillCreate,
     RoleSkillResponse,
+    RoadmapRequest,
+    RoadmapResponse,
 )
 from app.services.resume.embedding_engine import EmbeddingEngine
 from app.services.role.career_intelligence_engine import CareerIntelligenceEngine
 from app.services.role.skill_gap_engine import SkillGapEngine
 from app.services.role.user_career_state_service import UserCareerStateService
+from app.services.roadmap.roadmap_engine import RoadmapEngine
 
 router = APIRouter(prefix="/roles", tags=["Roles"])
 logger = logging.getLogger("lakshyaai.roles")
@@ -116,15 +119,24 @@ def _ensure_resume_embedding(db: Session, resume: models.Resume) -> list[float]:
     if not generated:
         return []
 
-    if resume_embedding:
-        resume_embedding.embedding = generated
-    else:
-        db.add(models.ResumeEmbedding(resume_id=resume.id, embedding=generated))
-    db.commit()
+    try:
+        if resume_embedding:
+            resume_embedding.embedding = generated
+        else:
+            db.add(models.ResumeEmbedding(resume_id=resume.id, embedding=generated))
+        db.commit()
+    except Exception as exc:
+        logger.warning("Could not persist resume embedding for resume_id=%s: %s", resume.id, exc)
+        db.rollback()
+
     return generated
 
 
-def _build_alignment_payload(db: Session, resume: models.Resume) -> dict[str, object]:
+def _build_alignment_payload(
+    db: Session,
+    resume: models.Resume,
+    target_role: str | None = None,
+) -> dict[str, object]:
     logger.info("Step 1: fetching resume skills and embeddings for resume_id=%s", resume.id)
     resume_skills = (
         db.query(models.ResumeSkill)
@@ -142,7 +154,7 @@ def _build_alignment_payload(db: Session, resume: models.Resume) -> dict[str, ob
         .all()
     )
 
-    logger.info("Step 3: running intelligence engine resume_id=%s", resume.id)
+    logger.info("Step 3: running intelligence engine resume_id=%s target_role=%s", resume.id, target_role)
     matches = CareerIntelligenceEngine.rank_roles(
         roles=roles,
         resume_skills=resume_skills,
@@ -154,18 +166,22 @@ def _build_alignment_payload(db: Session, resume: models.Resume) -> dict[str, ob
         str(item["display"])
         for item in CareerIntelligenceEngine._normalize_skill_map(resume_skills, exclude_related=True).values()
     ]
-    career_decision = CareerIntelligenceEngine.build_career_decision(matches, resume_skills) or {}
+    career_decision = CareerIntelligenceEngine.build_career_decision(matches, resume_skills, target_role=target_role) or {}
     top_match = matches[0] if matches else {}
     career_state = None
 
     if resume.user_id is not None:
-        career_state = UserCareerStateService.upsert(
-            db,
-            user_id=resume.user_id,
-            best_role=str(career_decision.get("target_role", "")),
-            score=int(top_match.get("score", 0)),
-            confidence=str(career_decision.get("confidence", "Low")),
-        )
+        try:
+            career_state = UserCareerStateService.upsert(
+                db,
+                user_id=resume.user_id,
+                best_role=str(career_decision.get("target_role", "")),
+                score=int(top_match.get("score", 0)),
+                confidence=str(career_decision.get("confidence", "Low")),
+            )
+        except Exception as exc:
+            logger.warning("Could not upsert user career state: %s", exc)
+            db.rollback()
 
     return {
         "resume_id": resume.id,
@@ -195,11 +211,17 @@ def _load_user_resume(db: Session, *, resume_id: UUID, user_id: UUID) -> models.
     return resume
 
 
-def _run_alignment_or_raise(db: Session, *, resume_id: UUID, current_user: models.User) -> dict[str, object]:
+def _run_alignment_or_raise(
+    db: Session,
+    *,
+    resume_id: UUID,
+    current_user: models.User,
+    target_role: str | None = None,
+) -> dict[str, object]:
     try:
         resume = _load_user_resume(db, resume_id=resume_id, user_id=current_user.id)
         logger.info("Step 2: running intelligence engine resume_id=%s", resume_id)
-        payload = _build_alignment_payload(db, resume)
+        payload = _build_alignment_payload(db, resume, target_role=target_role)
         if payload is None:
             logger.error("Alignment engine returned no payload resume_id=%s", resume_id)
             raise HTTPException(status_code=500, detail="Career intelligence engine returned no response")
@@ -376,29 +398,43 @@ def delete_role_skill(
 @router.get("/align/{resume_id}", response_model=AlignmentResponse)
 def align_resume_to_roles(
     resume_id: UUID,
+    target_role: str | None = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return _run_alignment_or_raise(db, resume_id=resume_id, current_user=current_user)
+    return _run_alignment_or_raise(db, resume_id=resume_id, current_user=current_user, target_role=target_role)
 
 
 @router.get("/intelligence/{resume_id}", response_model=AlignmentResponse)
 def career_intelligence(
     resume_id: UUID,
+    target_role: str | None = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return _run_alignment_or_raise(db, resume_id=resume_id, current_user=current_user)
+    return _run_alignment_or_raise(db, resume_id=resume_id, current_user=current_user, target_role=target_role)
 
 
 @router.get("/intelligence/{resume_id}/align", response_model=AlignmentResponse)
 def career_intelligence_align_alias(
     resume_id: UUID,
+    target_role: str | None = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     logger.info("Using compatibility route /roles/intelligence/%s/align", resume_id)
-    return _run_alignment_or_raise(db, resume_id=resume_id, current_user=current_user)
+    return _run_alignment_or_raise(db, resume_id=resume_id, current_user=current_user, target_role=target_role)
+
+
+@router.get("/analyze/{resume_id}", response_model=AlignmentResponse)
+def career_intelligence_analyze_alias(
+    resume_id: UUID,
+    target_role: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    logger.info("Using compatibility route /roles/analyze/%s", resume_id)
+    return _run_alignment_or_raise(db, resume_id=resume_id, current_user=current_user, target_role=target_role)
 
 
 @router.get("/skill-gap/{resume_id}/{role_id}")
@@ -449,3 +485,18 @@ def career_path_recommendation(
         "career_recommendation": intelligence["career_decision"],
         "matches": intelligence["matches"],
     }
+
+
+@router.post("/career-path", response_model=RoadmapResponse)
+def generate_career_path_alias(
+    request: RoadmapRequest,
+    current_user: models.User = Depends(get_current_user),
+):
+    """Compatibility alias delegating to RoadmapEngine.generate."""
+    return RoadmapEngine.generate(
+        target_role=request.target_role,
+        experience_level=request.experience_level,
+        current_skills=request.current_skills,
+        missing_skills=request.missing_skills,
+    )
+

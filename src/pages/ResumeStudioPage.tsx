@@ -8,6 +8,7 @@ import { PageTransition } from "@/components/PageTransition";
 import { ErrorFallback } from "@/components/ErrorFallback";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 import { ResumeStudioHeader } from "@/components/resume/ResumeStudioHeader";
 import { ResumeStudioTabs, type ResumeStudioTab } from "@/components/resume/ResumeStudioTabs";
@@ -46,18 +47,36 @@ export default function ResumeStudioPage({
   const location = useLocation();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<ResumeStudioTab>(initialTab);
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const queryTab = searchParams.get("tab") as ResumeStudioTab | null;
+
+  const validTabs: ResumeStudioTab[] = ["overview", "ats", "skills", "optimize", "history"];
+  const resolveInitialTab = (): ResumeStudioTab => {
+    if (queryTab && validTabs.includes(queryTab)) return queryTab;
+    if (initialTab === ("diagnostics" as any)) return "ats";
+    if (initialTab && validTabs.includes(initialTab)) return initialTab;
+    return "overview";
+  };
+
+  const [activeTab, setActiveTab] = useState<ResumeStudioTab>(resolveInitialTab);
   const [uploadModalOpen, setUploadModalOpen] = useState(autoOpenUpload);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Sync tab with initialTab prop if provided
+  // Sync tab with URL search parameter if it changes externally
   useEffect(() => {
-    if (initialTab) {
-      setActiveTab(initialTab);
+    if (queryTab && validTabs.includes(queryTab) && queryTab !== activeTab) {
+      setActiveTab(queryTab);
     }
-  }, [initialTab]);
+  }, [queryTab, activeTab]);
+
+  const handleTabChange = useCallback((tab: ResumeStudioTab) => {
+    setActiveTab(tab);
+    const params = new URLSearchParams(location.search);
+    params.set("tab", tab);
+    navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
+  }, [location.pathname, location.search, navigate]);
 
   // 1. Fetch user's stored resume list — strictly scoped to authenticated user
   const { data: resumeList = [], isLoading: isListLoading, refetch: refetchList } = useQuery<ResumeListItem[]>({
@@ -100,13 +119,14 @@ export default function ResumeStudioPage({
     retry: 2,
   });
 
-  // Handle Switching Active Resume
+  // Handle Switching Active Resume while preserving active tab
   const handleSelectResume = useCallback((id: string) => {
     if (userId) {
       setUserStorage(userId, RESUME_ID_KEY, id);
     }
-    navigate(`/resume/${id}`);
-  }, [userId, navigate]);
+    const currentTab = activeTab;
+    navigate(`/resume/${id}?tab=${currentTab}`);
+  }, [userId, navigate, activeTab]);
 
   // Upload Mutation
   const handleUploadFile = useCallback(async (file: File) => {
@@ -222,11 +242,29 @@ export default function ResumeStudioPage({
   if (isResumeError) {
     return (
       <PageTransition>
-        <ErrorFallback
-          title="Resume Load Failed"
-          message="We couldn't retrieve this resume analysis."
-          onRetry={() => refetchActiveResume()}
-        />
+        <div className="space-y-6 max-w-xl mx-auto py-16 text-center">
+          <ErrorFallback
+            title="Resume Load Failed"
+            message="We couldn't retrieve this resume version. It may not exist or may have been deleted."
+            onRetry={() => refetchActiveResume()}
+          />
+          {resumeList.length > 0 && (
+            <div className="pt-2">
+              <Button
+                variant="gradient"
+                size="sm"
+                onClick={() => {
+                  const fallbackId = resumeList[0]?.id;
+                  if (fallbackId) handleSelectResume(fallbackId);
+                  else navigate("/resume");
+                }}
+                className="gap-2 text-xs font-semibold"
+              >
+                <span>View Stored Resume ({resumeList[0]?.file_name || "Latest"})</span>
+              </Button>
+            </div>
+          )}
+        </div>
       </PageTransition>
     );
   }
@@ -238,7 +276,8 @@ export default function ResumeStudioPage({
         <ResumeStudioHeader
           resumes={resumeList}
           activeResumeId={activeResumeId}
-          activeResume={activeResume}
+          activeResumeName={activeResume?.file_name || activeResume?.original_filename}
+          activeAtsScore={activeResume?.ats_score}
           onSelectResume={handleSelectResume}
           onOpenUpload={() => setUploadModalOpen(true)}
           onDownloadOriginal={handleDownloadOriginal}
@@ -247,7 +286,7 @@ export default function ResumeStudioPage({
         />
 
         {/* Studio Tabs Navigation */}
-        <ResumeStudioTabs activeTab={activeTab} onTabChange={setActiveTab} />
+        <ResumeStudioTabs activeTab={activeTab} onTabChange={handleTabChange} />
 
         {/* Tab Panels */}
         <AnimatePresence mode="wait">
@@ -261,25 +300,34 @@ export default function ResumeStudioPage({
             >
               <ResumeOverview
                 resume={activeResume}
-                onOptimizeClick={() => setActiveTab("optimize")}
-                onDiagnosticsClick={() => setActiveTab("diagnostics")}
+                onDownloadOriginal={handleDownloadOriginal}
+                isDownloading={isDownloading}
+                onSwitchTab={handleTabChange}
               />
             </motion.div>
           )}
 
-          {activeTab === "diagnostics" && activeResume && (
+          {activeTab === "ats" && (
             <motion.div
-              key="tab-diagnostics"
+              key="tab-ats"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              <ATSDiagnostics resume={activeResume} />
+              <ATSDiagnostics
+                resume={activeResume || null}
+                isLoading={isResumeLoading}
+                isError={isResumeError}
+                onRetry={() => refetchActiveResume()}
+                onOptimize={() => handleTabChange("optimize")}
+                onViewSkills={() => handleTabChange("skills")}
+                onOpenUpload={() => setUploadModalOpen(true)}
+              />
             </motion.div>
           )}
 
-          {activeTab === "skills" && activeResume && (
+          {activeTab === "skills" && (
             <motion.div
               key="tab-skills"
               initial={{ opacity: 0, y: 10 }}
@@ -287,11 +335,18 @@ export default function ResumeStudioPage({
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              <SkillIntelligence resume={activeResume} />
+              <SkillIntelligence
+                resume={activeResume || null}
+                isLoading={isResumeLoading}
+                isError={isResumeError}
+                onRetry={() => refetchActiveResume()}
+                onOptimize={() => handleTabChange("optimize")}
+                onOpenUpload={() => setUploadModalOpen(true)}
+              />
             </motion.div>
           )}
 
-          {activeTab === "optimize" && activeResume && (
+          {activeTab === "optimize" && (
             <motion.div
               key="tab-optimize"
               initial={{ opacity: 0, y: 10 }}
@@ -299,7 +354,7 @@ export default function ResumeStudioPage({
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              <ResumeOptimize resume={activeResume} />
+              <ResumeOptimize resume={activeResume || null} />
             </motion.div>
           )}
 
@@ -315,6 +370,7 @@ export default function ResumeStudioPage({
                 resumes={resumeList}
                 activeResumeId={activeResumeId}
                 onSelectResume={handleSelectResume}
+                onOpenUpload={() => setUploadModalOpen(true)}
                 onDeleteResume={handleDeleteResume}
               />
             </motion.div>

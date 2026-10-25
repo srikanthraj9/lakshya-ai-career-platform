@@ -46,7 +46,7 @@ export function ResumeStudioHeader({
 }: ResumeStudioHeaderProps) {
   const currentResume = resumes.find((r) => r.id === activeResumeId);
   const displayName = activeResumeName || currentResume?.file_name || "Select Resume";
-  const displayScore = activeAtsScore ?? 95;
+  const displayScore = activeAtsScore ?? currentResume?.ats_score ?? null;
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-2 border-b border-border/50">
@@ -83,7 +83,7 @@ export function ResumeStudioHeader({
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-72 p-1.5 rounded-2xl border-border bg-popover/95 backdrop-blur-2xl">
+            <DropdownMenuContent align="end" className="w-80 p-1.5 rounded-2xl border-border bg-popover/95 backdrop-blur-2xl">
               <div className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Switch Resume Version
               </div>
@@ -99,7 +99,14 @@ export function ResumeStudioHeader({
                     <div className="flex items-center gap-2.5 min-w-0">
                       <FileText className="h-4 w-4 text-primary shrink-0" />
                       <div className="min-w-0">
-                        <p className="font-medium text-foreground truncate">{r.file_name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium text-foreground truncate">{r.file_name}</p>
+                          {typeof r.ats_score === "number" && (
+                            <span className="shrink-0 text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.2 rounded-full">
+                              ATS {r.ats_score}%
+                            </span>
+                          )}
+                        </div>
                         {r.created_at && (
                           <p className="text-[10px] text-muted-foreground">
                             {formatChartDate(r.created_at)}

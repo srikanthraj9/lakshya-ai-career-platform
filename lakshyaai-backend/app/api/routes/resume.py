@@ -41,7 +41,6 @@ def _rewrite_response_payload(
 ) -> dict[str, str | dict]:
     try:
         logger.info("Resume rewrite request received user_id=%s text_length=%s", current_user.id, len(request.text))
-        logger.info("Received text preview: %s", request.text[:100])
 
         result = ResumeService.rewrite_resume(
             user=current_user,
@@ -50,8 +49,12 @@ def _rewrite_response_payload(
         )
         logger.info("Resume rewrite service completed user_id=%s", current_user.id)
 
-        pdf_bytes = compile_latex_to_pdf(result["latex"])
-        logger.info("LaTeX compilation completed user_id=%s pdf_size=%s", current_user.id, len(pdf_bytes))
+        try:
+            pdf_bytes = compile_latex_to_pdf(result["latex"])
+            logger.info("LaTeX compilation completed user_id=%s pdf_size=%s", current_user.id, len(pdf_bytes))
+        except Exception as latex_exc:
+            logger.warning("LaTeX PDF compilation failed or compiler unavailable: %s", latex_exc)
+            pdf_bytes = b""
 
         document_id = ResumeRewriteStorage.store(
             user_id=current_user.id,
@@ -267,6 +270,8 @@ async def download_rewritten_pdf(
     if manifest.get("owner_id") != str(current_user.id):
         raise ValidationException("You do not have access to this generated resume")
     pdf_path = ResumeRewriteStorage.get_pdf_path(document_id)
+    if not pdf_path.exists() or pdf_path.stat().st_size == 0:
+        raise HTTPException(status_code=404, detail="PDF preview was not generated for this rewrite")
     return FileResponse(pdf_path, media_type="application/pdf", filename="ai_resume.pdf")
 
 

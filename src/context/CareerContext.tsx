@@ -114,13 +114,51 @@ export function CareerProvider({ children }: { children: React.ReactNode }) {
     });
   }, [userId, activeResume]);
 
-  const detectedSkills = useMemo(() => activeResume?.skills || [], [activeResume]);
-  const missingSkills = useMemo(() => {
-    if (activeResume?.feedback?.missing_skills && activeResume.feedback.missing_skills.length > 0) {
-      return activeResume.feedback.missing_skills;
-    }
-    return ["Docker", "Redis", "Kubernetes", "CI/CD"];
+  const detectedSkills = useMemo(() => {
+    if (!activeResume?.skills) return [];
+    return activeResume.skills.map((s: any) =>
+      typeof s === "string" ? s : s.skill_name || s.name || s.skill || String(s)
+    );
   }, [activeResume]);
+
+  const missingSkills = useMemo(() => {
+    // 1. Check if active resume feedback has verified missing skills
+    const rawFeedback = activeResume?.feedback?.missing_skills || (activeResume as any)?.missing_skills;
+    if (Array.isArray(rawFeedback) && rawFeedback.length > 0) {
+      const parsed = rawFeedback
+        .map((s: any) => (typeof s === "string" ? s : s.skill || s.skill_name || s.name || ""))
+        .filter((s: string) => s.trim().length > 0);
+      if (parsed.length > 0) return parsed;
+    }
+
+    // 2. Derive authentic skill gaps based on target role benchmarks vs detected skills
+    const roleLower = (targetRole || "").toLowerCase();
+    let roleBenchmarks: string[] = [];
+
+    if (roleLower.includes("full") || roleLower.includes("stack") || roleLower.includes("mern")) {
+      roleBenchmarks = ["TypeScript", "React", "Next.js", "PostgreSQL", "Docker", "REST APIs", "CI/CD"];
+    } else if (roleLower.includes("front") || roleLower.includes("ui") || roleLower.includes("react")) {
+      roleBenchmarks = ["TypeScript", "React", "Tailwind CSS", "Next.js", "Web Performance", "Vitest / RTL"];
+    } else if (roleLower.includes("devops") || roleLower.includes("cloud") || roleLower.includes("sre") || roleLower.includes("platform")) {
+      roleBenchmarks = ["Linux", "Docker", "Kubernetes", "Terraform", "CI/CD", "AWS / Cloud", "Prometheus"];
+    } else if (roleLower.includes("data") || roleLower.includes("ai") || roleLower.includes("machine")) {
+      roleBenchmarks = ["Python", "SQL", "Pandas", "Scikit-Learn", "PyTorch", "Data Pipelines"];
+    } else if (roleLower.includes("back") || roleLower.includes("api") || roleLower.includes("python")) {
+      roleBenchmarks = ["FastAPI / Python", "PostgreSQL", "Docker", "Redis", "Database Indexing", "CI/CD"];
+    } else if (roleLower && roleLower !== "no target role selected") {
+      roleBenchmarks = ["System Architecture", "Automated Testing", "Cloud Deployment", "API Design"];
+    }
+
+    if (roleBenchmarks.length === 0) return [];
+
+    const detectedLower = new Set(detectedSkills.map((s) => s.toLowerCase()));
+    const gaps = roleBenchmarks.filter((benchmark) => {
+      const words = benchmark.toLowerCase().split(/[\s/]+/);
+      return !words.some((w) => detectedLower.has(w));
+    });
+
+    return gaps;
+  }, [activeResume, detectedSkills, targetRole]);
 
   const addSkillToRoadmap = useCallback((skill: string) => {
     if (!userId) return;
@@ -170,10 +208,16 @@ export function CareerProvider({ children }: { children: React.ReactNode }) {
   return <CareerContext.Provider value={value}>{children}</CareerContext.Provider>;
 }
 
+export { CareerContext };
+
 export function useCareerContext(): CareerContextType {
   const context = useContext(CareerContext);
   if (!context) {
     throw new Error("useCareerContext must be used within a CareerProvider");
   }
   return context;
+}
+
+export function useOptionalCareerContext(): CareerContextType | null {
+  return useContext(CareerContext);
 }

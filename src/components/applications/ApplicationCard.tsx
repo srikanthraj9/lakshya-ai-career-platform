@@ -97,6 +97,15 @@ export function ApplicationCard({
                   </a>
                 </DropdownMenuItem>
               )}
+              {APPLICATION_STAGES.filter((s) => s.id !== application.stage).map((s) => (
+                <DropdownMenuItem
+                  key={s.id}
+                  onClick={() => onTransition(application.id, s.id)}
+                  className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground"
+                >
+                  Move to: {s.label}
+                </DropdownMenuItem>
+              ))}
               <DropdownMenuItem onClick={() => onDelete(application.id)} className="cursor-pointer text-destructive focus:text-destructive">
                 <Trash2 className="h-3 w-3 mr-1.5" /> Delete Application
               </DropdownMenuItem>
@@ -154,7 +163,7 @@ export function ApplicationCard({
             </Button>
           )}
 
-          {nextStage && nextStage.id !== "closed" ? (
+          {nextStage ? (
             <Button
               size="sm"
               onClick={() => onTransition(application.id, nextStage.id)}

@@ -1,7 +1,9 @@
 # Environment variables and secrets
 .env
 .env.*
+.env.local
 !.env.example
+!.env.*.example
 
 # Logs
 logs
@@ -28,6 +30,18 @@ __pycache__/
 *.pyo
 venv/
 .venv/
+env/
+.env/
+
+# Databases & local storage
+*.db
+*.sqlite
+*.sqlite3
+storage/
+uploads/
+
+# Vite temporary files
+vite.config.ts.timestamp-*
 
 # Editor directories and files
 .vscode/*

@@ -23,29 +23,30 @@ export default function RoleAlignmentPage() {
     data: roleData,
     isLoading,
     isError,
+    error,
     refetch,
   } = useQuery<RoleAlignmentResponse>({
-    queryKey: ["role-alignment", activeResumeId],
-    queryFn: () => roleService.alignRole(activeResumeId!),
+    queryKey: ["role-alignment", activeResumeId, targetRole],
+    queryFn: () => roleService.alignRole(activeResumeId!, targetRole),
     enabled: Boolean(activeResumeId),
-    retry: 2,
+    retry: import.meta.env.MODE === "test" ? false : 2,
   });
 
   // Extract distinct categories
   const categories = useMemo(() => {
-    if (!roleData?.matches) return [];
+    if (!roleData?.matches || !Array.isArray(roleData.matches)) return [];
     const set = new Set<string>();
     roleData.matches.forEach((m) => {
-      if (m.category) set.add(m.category);
+      if (m?.category) set.add(m.category);
     });
     return [ALL_CATEGORIES, ...Array.from(set)];
   }, [roleData]);
 
   // Filter matches
   const filteredMatches = useMemo(() => {
-    if (!roleData?.matches) return [];
+    if (!roleData?.matches || !Array.isArray(roleData.matches)) return [];
     if (selectedCategory === ALL_CATEGORIES) return roleData.matches;
-    return roleData.matches.filter((m) => m.category === selectedCategory);
+    return roleData.matches.filter((m) => m?.category === selectedCategory);
   }, [roleData, selectedCategory]);
 
   if (!activeResumeId) {
@@ -83,11 +84,17 @@ export default function RoleAlignmentPage() {
   }
 
   if (isError) {
+    const errorDetail =
+      (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    const errorMessage = errorDetail && typeof errorDetail === "string"
+      ? errorDetail
+      : "We could not analyze role alignment for this resume. Please check your connection or try again.";
+
     return (
       <PageTransition>
         <ErrorFallback
           title="Role Alignment Failed"
-          message="We could not analyze role alignment for this resume."
+          message={errorMessage}
           onRetry={() => refetch()}
         />
       </PageTransition>
@@ -106,15 +113,26 @@ export default function RoleAlignmentPage() {
         />
 
         {/* Role Matches List */}
-        <div className="space-y-6">
-          {filteredMatches.map((match, idx) => (
-            <RoleMatchCard
-              key={match.role_id || `${match.role}-${idx}`}
-              match={match}
-              isExpandedDefault={idx === 0}
-            />
-          ))}
-        </div>
+        {filteredMatches.length === 0 ? (
+          <div className="glass-card rounded-3xl p-8 text-center space-y-3">
+            <Compass className="h-8 w-8 text-muted-foreground mx-auto" />
+            <p className="text-sm font-semibold text-foreground">No roles found in this category</p>
+            <p className="text-xs text-muted-foreground">Try selecting "All Categories" to view all evaluated career tracks.</p>
+            <Button variant="outline" size="sm" onClick={() => setSelectedCategory(ALL_CATEGORIES)}>
+              Reset Filter
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {filteredMatches.map((match, idx) => (
+              <RoleMatchCard
+                key={match.role_id || `${match.role}-${idx}`}
+                match={match}
+                isExpandedDefault={idx === 0}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </PageTransition>
   );

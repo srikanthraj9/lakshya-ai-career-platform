@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useMutation } from "@tanstack/react-query";
-import { Wand2, Sparkles, Loader2, Target, CheckCircle2, ArrowRight, FileText } from "lucide-react";
+import { Wand2, Sparkles, Loader2, Target, CheckCircle2, ArrowRight, FileText, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -56,6 +56,10 @@ export function ResumeOptimize({ resume, initialJobDescription = "" }: ResumeOpt
   });
 
   const handleGenerate = () => {
+    if (!targetRole.trim()) {
+      toast.error("Please enter a target role (e.g. Senior Full-Stack Engineer) to focus optimization.");
+      return;
+    }
     if (!originalText.trim()) {
       toast.error("Please provide your original resume text or select an active resume.");
       return;
@@ -172,6 +176,28 @@ export function ResumeOptimize({ resume, initialJobDescription = "" }: ResumeOpt
           <p className="text-xs text-muted-foreground max-w-md mx-auto">
             Restructuring experience bullets into high-impact STAR statements and compiling into professional LaTeX PDF.
           </p>
+        </div>
+      )}
+
+      {/* Error Banner when Failed */}
+      {mutation.isError && !mutation.isPending && (
+        <div className="glass-card rounded-3xl p-6 border border-rose-500/20 bg-rose-500/5 text-center space-y-3">
+          <div className="flex items-center justify-center gap-2 text-rose-400 font-semibold text-sm">
+            <AlertCircle className="h-5 w-5" />
+            <span>AI Resume Optimization Failed</span>
+          </div>
+          <p className="text-xs text-muted-foreground max-w-md mx-auto">
+            {getApiErrorMessage(mutation.error)}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGenerate}
+            className="gap-2 text-xs border-rose-500/30 text-rose-400 hover:bg-rose-500/10"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>Try Again</span>
+          </Button>
         </div>
       )}
 

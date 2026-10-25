@@ -32,10 +32,15 @@ export function AddApplicationModal({
   const [stage, setStage] = useState("wishlist");
   const [notes, setNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!company.trim() || !title.trim()) return;
+    if (!company.trim() || !title.trim()) {
+      setValidationError("Company Name and Job Title are required.");
+      return;
+    }
+    setValidationError(null);
 
     setIsSaving(true);
     try {
@@ -55,6 +60,7 @@ export function AddApplicationModal({
       setSalary("");
       setJobUrl("");
       setNotes("");
+      setValidationError(null);
     } finally {
       setIsSaving(false);
     }
@@ -153,6 +159,12 @@ export function AddApplicationModal({
               className="rounded-xl border-border/60 bg-secondary/30 text-xs"
             />
           </div>
+
+          {validationError && (
+            <p className="text-[11px] font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-1.5">
+              {validationError}
+            </p>
+          )}
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" size="sm" onClick={onClose} className="rounded-xl text-xs">

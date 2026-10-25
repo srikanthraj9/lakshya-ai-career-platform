@@ -133,7 +133,18 @@ export function ApplicationTable({
                 </td>
 
                 <td className="py-3 px-3">
-                  {getStageBadge(app.stage)}
+                  <select
+                    value={app.stage}
+                    onChange={(e) => onTransition(app.id, e.target.value)}
+                    aria-label={`Change stage for ${app.company_name}`}
+                    className="rounded-lg border border-border/60 bg-secondary/30 px-2 py-1 text-[11px] font-semibold text-foreground focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
+                  >
+                    {APPLICATION_STAGES.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
                 </td>
 
                 <td className="py-3 px-3">

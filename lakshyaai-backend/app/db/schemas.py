@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
@@ -45,6 +45,8 @@ class RegisterResponse(BaseModel):
     email: EmailStr
     is_email_verified: bool = False
     message: str = "Account created successfully. Please verify your email to continue."
+    email_sent: bool = True
+    delivery_status: Optional[str] = "sent"
 
 
 class VerifyEmailRequest(BaseModel):
@@ -53,6 +55,13 @@ class VerifyEmailRequest(BaseModel):
 
 class ResendVerificationRequest(BaseModel):
     email: EmailStr
+
+
+class ResendVerificationResponse(BaseModel):
+    success: bool
+    message: str
+    email_sent: bool = True
+    delivery_status: Optional[str] = "sent"
 
 
 class EmailVerificationResponse(BaseModel):
@@ -143,6 +152,7 @@ class ResumeListItemResponse(BaseModel):
     id: UUID
     file_name: str
     created_at: datetime
+    ats_score: Optional[int] = None
 
 
 class ResumeResponse(BaseModel):
@@ -270,6 +280,7 @@ class RoadmapRequest(BaseModel):
     target_role: str = Field(min_length=1)
     experience_level: str = Field(min_length=1)
     current_skills: list[str] | None = None
+    missing_skills: list[str] | None = None
 
     @model_validator(mode="after")
     def normalize_fields(self) -> "RoadmapRequest":
@@ -281,14 +292,23 @@ class RoadmapRequest(BaseModel):
             raise ValueError("experience_level is required")
         if self.current_skills is not None:
             self.current_skills = [s.strip() for s in self.current_skills if isinstance(s, str) and s.strip()]
+        if self.missing_skills is not None:
+            self.missing_skills = [s.strip() for s in self.missing_skills if isinstance(s, str) and s.strip()]
         return self
 
 
 class RoadmapStep(BaseModel):
     step: str
-    resources: list[str] = Field(default_factory=list)
+    title: Optional[str] = None
+    resources: list[Any] = Field(default_factory=list)
     duration: str = ""
     stage: Optional[str] = None
+    skills: list[str] = Field(default_factory=list)
+    why_it_matters: Optional[str] = None
+    prerequisites: list[str] = Field(default_factory=list)
+    beginner_friendly_explanation: Optional[str] = None
+    practical_project: Optional[str] = None
+    checklist: list[str] = Field(default_factory=list)
     completion_criteria: Optional[str] = None
 
 
@@ -297,6 +317,13 @@ class RoadmapResponse(BaseModel):
     track: str = "general"
     is_personalized: bool = False
     role_supported: bool = True
+    recommended_next_action: Optional[str] = None
+    estimated_total_duration: Optional[str] = None
+
+
+RoadmapStep.model_rebuild()
+RoadmapResponse.model_rebuild()
+
 
 
 class RoleCreate(BaseModel):
@@ -577,6 +604,7 @@ class CopilotChatRequest(BaseModel):
     messages: list[CopilotChatMessage] = Field(min_length=1)
     conversation_id: Optional[UUID] = None
     mode: Optional[str] = "career"
+    candidate_context: Optional[dict[str, Any]] = None
 
 
 class CopilotResponse(BaseModel):

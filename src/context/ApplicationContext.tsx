@@ -92,6 +92,10 @@ export function ApplicationProvider({ children }: { children: React.ReactNode })
       }
       toast.success("Application tracked successfully! 📋");
     },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Failed to track application";
+      toast.error(msg);
+    },
   });
 
   // 5. Stage Transition Mutation (with Optimistic Updates)
@@ -137,6 +141,10 @@ export function ApplicationProvider({ children }: { children: React.ReactNode })
       }
       toast.success("Application updated");
     },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Failed to update application";
+      toast.error(msg);
+    },
   });
 
   // 7. Delete Mutation
@@ -147,6 +155,10 @@ export function ApplicationProvider({ children }: { children: React.ReactNode })
         queryClient.invalidateQueries({ queryKey: queryKeys.applications.all(userId) });
       }
       toast.info("Application deleted");
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Failed to delete application";
+      toast.error(msg);
     },
   });
 
@@ -161,6 +173,10 @@ export function ApplicationProvider({ children }: { children: React.ReactNode })
         queryClient.invalidateQueries({ queryKey: queryKeys.activity.all(userId) });
       }
       toast.success("Interview debrief saved & outcome patterns updated! 🧠");
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Failed to save debrief";
+      toast.error(msg);
     },
   });
 

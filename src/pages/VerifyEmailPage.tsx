@@ -1,10 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
 import { authService } from "@/services/auth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Mail,
   CheckCircle2,
@@ -23,12 +22,12 @@ const COOLDOWN_SECONDS = 60;
 
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const tokenFromUrl = searchParams.get("token");
 
   const {
     user,
     pendingEmail,
-    setPendingEmail,
     setAuthSession,
     refreshUser,
     logout,
@@ -41,9 +40,13 @@ export default function VerifyEmailPage() {
   const [verificationSuccess, setVerificationSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const [resendEmail, setResendEmail] = useState(
-    pendingEmail || user?.email || "",
+  const initialDeliveryFailed = (location.state as { emailSent?: boolean } | null)?.emailSent === false;
+  const [deliveryWarning, setDeliveryWarning] = useState<string | null>(
+    initialDeliveryFailed
+      ? "Verification email could not be sent automatically. Please click 'Resend Verification Email' below."
+      : null,
   );
+
   const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
 
@@ -109,12 +112,10 @@ export default function VerifyEmailPage() {
     };
   }, [cooldown]);
 
-  const handleResend = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-
-    const targetEmail = (resendEmail || pendingEmail || user?.email || "").trim().toLowerCase();
+  const handleResend = async () => {
+    const targetEmail = (pendingEmail || user?.email || "").trim().toLowerCase();
     if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
-      setErrorMessage("Please provide a valid email address to resend verification.");
+      setErrorMessage("No valid registered email address found. Please try logging in or registering again.");
       return;
     }
 
@@ -123,13 +124,33 @@ export default function VerifyEmailPage() {
 
     try {
       const response = await authService.resendVerification({ email: targetEmail });
-      setPendingEmail(targetEmail);
-      setCooldown(COOLDOWN_SECONDS);
-      toast.success(response.message || "Verification email sent. Check your inbox!");
+      if (response.email_sent === false) {
+        setErrorMessage(response.message || "Failed to deliver verification email. Please try again.");
+        toast.error(response.message || "Failed to send verification email.");
+      } else {
+        setDeliveryWarning(null);
+        setCooldown(COOLDOWN_SECONDS);
+        toast.success(response.message || "Verification email sent. Check your inbox!");
+      }
     } catch (error) {
       const message = getApiErrorMessage(error);
       setErrorMessage(message);
       toast.error(message);
+
+      // Synchronize cooldown if backend returned 429 with remaining seconds
+      if (axios.isAxiosError(error) && error.response?.status === 429) {
+        const detail = (error.response.data as { detail?: string; error?: { message?: string } })?.detail
+          || (error.response.data as { detail?: string; error?: { message?: string } })?.error?.message;
+        if (typeof detail === "string") {
+          const match = detail.match(/(\d+)\s*seconds?/i);
+          if (match && match[1]) {
+            const seconds = parseInt(match[1], 10);
+            if (!isNaN(seconds) && seconds > 0) {
+              setCooldown(seconds);
+            }
+          }
+        }
+      }
     } finally {
       setResending(false);
     }
@@ -139,7 +160,7 @@ export default function VerifyEmailPage() {
     navigate("/onboarding", { replace: true });
   };
 
-  const displayEmail = pendingEmail || user?.email || resendEmail || "your email address";
+  const displayEmail = pendingEmail || user?.email || "your registered email address";
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12 sm:px-6 lg:px-8">
@@ -239,6 +260,17 @@ export default function VerifyEmailPage() {
                   </p>
                 </div>
 
+                {deliveryWarning && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-left text-xs font-medium text-amber-400"
+                  >
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />
+                    <span>{deliveryWarning}</span>
+                  </motion.div>
+                )}
+
                 {errorMessage && (
                   <motion.div
                     initial={{ opacity: 0, y: -4 }}
@@ -273,32 +305,21 @@ export default function VerifyEmailPage() {
                     )}
                   </Button>
 
-                  {/* Option to change destination email if needed */}
-                  <div className="border-t border-border/40 pt-4">
-                    <form onSubmit={handleResend} className="space-y-2 text-left">
-                      <Label htmlFor="resend-input" className="text-[11px] font-medium text-muted-foreground">
-                        Need to use a different email?
-                      </Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="resend-input"
-                          type="email"
-                          value={resendEmail}
-                          onChange={(e) => setResendEmail(e.target.value)}
-                          placeholder="Enter new email address"
-                          className="h-9 text-xs bg-background/50"
-                        />
-                        <Button
-                          type="submit"
-                          size="sm"
-                          variant="secondary"
-                          disabled={resending || cooldown > 0}
-                          className="h-9 px-3 text-xs"
-                        >
-                          Send
-                        </Button>
-                      </div>
-                    </form>
+                  {/* Safe option if user entered the wrong email during registration */}
+                  <div className="border-t border-border/40 pt-4 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">
+                      Wrong email address or typo?
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        logout();
+                        navigate("/register");
+                      }}
+                      className="text-xs text-primary hover:underline font-medium transition-colors"
+                    >
+                      Register with a different email address →
+                    </button>
                   </div>
                 </div>
 

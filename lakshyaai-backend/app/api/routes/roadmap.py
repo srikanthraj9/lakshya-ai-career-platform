@@ -30,6 +30,8 @@ def generate_roadmap(
         response = RoadmapEngine.generate(
             target_role=request.target_role,
             experience_level=request.experience_level,
+            current_skills=request.current_skills,
+            missing_skills=request.missing_skills,
         )
         logger.info(
             "Roadmap generated user_id=%s steps=%s",

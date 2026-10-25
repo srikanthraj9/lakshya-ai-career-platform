@@ -16,7 +16,7 @@ interface ResumeDocumentPreviewProps {
 export function ResumeDocumentPreview({
   fileName = "resume.pdf",
   extractedText,
-  atsScore = 95,
+  atsScore = 0,
   onDownload,
   isDownloading = false,
 }: ResumeDocumentPreviewProps) {

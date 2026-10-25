@@ -4,7 +4,26 @@ import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+import socket
+
 logger = logging.getLogger("lakshyaai.email")
+
+
+class EmailDeliveryResult:
+    """
+    Structured outcome of an email dispatch attempt.
+    Supports boolean truthiness for backward compatibility.
+    """
+    def __init__(self, success: bool, status: str, message: str):
+        self.success = success
+        self.status = status  # 'sent' | 'unconfigured' | 'auth_error' | 'connection_error' | 'smtp_error' | 'unexpected_error'
+        self.message = message
+
+    def __bool__(self) -> bool:
+        return self.success
+
+    def __repr__(self) -> str:
+        return f"<EmailDeliveryResult success={self.success} status={self.status}>"
 
 
 def get_verification_url(raw_token: str) -> str:
@@ -125,34 +144,32 @@ def build_verification_html(full_name: str, verification_url: str) -> str:
 """
 
 
-def send_verification_email(email: str, full_name: str, raw_token: str) -> bool:
+def send_verification_email(email: str, full_name: str, raw_token: str) -> EmailDeliveryResult:
     """
     Sends an email verification link.
     If SMTP credentials exist in environment, sends live email over TLS/SSL.
-    Otherwise, logs the verification link to the console for frictionless development.
+    Returns an EmailDeliveryResult indicating acceptance or failure category.
     """
     verification_url = get_verification_url(raw_token)
 
-    smtp_host = os.getenv("SMTP_HOST")
+    smtp_host = (os.getenv("SMTP_HOST") or "").strip()
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user = os.getenv("SMTP_USER")
-    smtp_password = os.getenv("SMTP_PASSWORD")
-    from_email = os.getenv("SMTP_FROM_EMAIL", smtp_user or "no-reply@lakshyaai.com")
-
-    # Always log the link to console during development/testing
-    print("\n" + "=" * 70)
-    print(f"[EMAIL VERIFICATION LINK] For: {email}")
-    print(f"URL: {verification_url}")
-    print("=" * 70 + "\n")
+    smtp_user = (os.getenv("SMTP_USER") or "").strip()
+    smtp_password = (os.getenv("SMTP_PASSWORD") or "").strip()
+    from_email = (os.getenv("SMTP_FROM_EMAIL") or smtp_user or "no-reply@lakshyaai.com").strip()
 
     if not (smtp_host and smtp_user and smtp_password):
-        logger.info(
-            "SMTP credentials not configured. Verification email link generated locally for %s: %s",
+        logger.warning(
+            "SMTP credentials not configured. Verification email dispatch skipped for %s",
             email,
-            verification_url,
         )
-        return True
+        return EmailDeliveryResult(
+            success=False,
+            status="unconfigured",
+            message="SMTP email service is not configured on the server.",
+        )
 
+    server = None
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = "Verify your LakshyaAI Account"
@@ -169,14 +186,72 @@ def send_verification_email(email: str, full_name: str, raw_token: str) -> bool:
             server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
         else:
             server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
+            server.ehlo()
             server.starttls()
+            server.ehlo()
 
         server.login(smtp_user, smtp_password)
         server.sendmail(from_email, [email], msg.as_string())
-        server.quit()
 
-        logger.info("Successfully sent verification email to %s", email)
-        return True
+        logger.info("Successfully accepted verification email for %s via SMTP", email)
+        return EmailDeliveryResult(
+            success=True,
+            status="sent",
+            message="Verification email sent successfully.",
+        )
+    except smtplib.SMTPAuthenticationError as auth_err:
+        logger.error(
+            "SMTP authentication failed sending to %s (SMTP Code: %s)",
+            email,
+            getattr(auth_err, "smtp_code", "Unknown"),
+        )
+        return EmailDeliveryResult(
+            success=False,
+            status="auth_error",
+            message="Email authentication failed on SMTP server.",
+        )
+    except (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected, socket.timeout, TimeoutError) as conn_err:
+        logger.error(
+            "SMTP connection/timeout error sending to %s [%s]: %s",
+            email,
+            conn_err.__class__.__name__,
+            conn_err,
+        )
+        return EmailDeliveryResult(
+            success=False,
+            status="connection_error",
+            message="Could not connect to SMTP server. Please try again later.",
+        )
+    except smtplib.SMTPException as smtp_err:
+        logger.error(
+            "SMTP protocol error sending to %s [%s]: %s",
+            email,
+            smtp_err.__class__.__name__,
+            smtp_err,
+        )
+        return EmailDeliveryResult(
+            success=False,
+            status="smtp_error",
+            message="SMTP delivery error. Please try again later.",
+        )
     except Exception as exc:
-        logger.error("Failed to send verification email to %s via SMTP: %s", email, exc)
-        return False
+        logger.error(
+            "Unexpected error sending verification email to %s [%s]: %s",
+            email,
+            exc.__class__.__name__,
+            exc,
+        )
+        return EmailDeliveryResult(
+            success=False,
+            status="unexpected_error",
+            message="Unexpected error delivering email.",
+        )
+    finally:
+        if server is not None:
+            try:
+                server.quit()
+            except Exception:
+                try:
+                    server.close()
+                except Exception:
+                    pass

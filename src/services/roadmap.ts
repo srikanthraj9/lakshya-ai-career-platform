@@ -14,11 +14,22 @@ export interface RoadmapProgressItem {
 export const roadmapService = {
   async generate(payload: RoadmapRequest): Promise<RoadmapResponse> {
     try {
-      const res = await api.post("/roles/career-path", payload, {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      // Primary roadmap generation endpoint
+      let res;
+      try {
+        res = await api.post("/roadmap/generate", payload, {
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err: any) {
+        // Fallback compatibility endpoint if /roadmap/generate is unavailable
+        if (err?.response?.status === 404 || err?.response?.status === 405) {
+          res = await api.post("/roles/career-path", payload, {
+            headers: { "Content-Type": "application/json" },
+          });
+        } else {
+          throw err;
+        }
+      }
 
       if (!res?.data) {
         throw new Error("No data received from roadmap API");

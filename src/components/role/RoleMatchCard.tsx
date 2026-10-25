@@ -29,8 +29,18 @@ export function RoleMatchCard({ match, isExpandedDefault = false }: RoleMatchCar
   const [isExpanded, setIsExpanded] = useState(isExpandedDefault);
   const { addSkillToRoadmap } = useCareerContext();
 
-  const score = Math.round(match.readiness_score || match.score || 80);
+  const score = Math.round(typeof match.readiness_score === "number" ? match.readiness_score : (match.score ?? 0));
   const isHighFit = score >= 80;
+
+  const coreCoveragePercent =
+    match.core_skill_coverage > 1
+      ? Math.min(100, Math.max(0, Math.round(match.core_skill_coverage)))
+      : Math.min(100, Math.max(0, Math.round((match.core_skill_coverage || 0) * 100)));
+
+  const advancedCoveragePercent =
+    match.advanced_skill_coverage > 1
+      ? Math.min(100, Math.max(0, Math.round(match.advanced_skill_coverage)))
+      : Math.min(100, Math.max(0, Math.round((match.advanced_skill_coverage || 0) * 100)));
 
   const handleAddSkill = (skill: string) => {
     addSkillToRoadmap(skill);
@@ -78,12 +88,12 @@ export function RoleMatchCard({ match, isExpandedDefault = false }: RoleMatchCar
         <div className="space-y-1.5 p-3 rounded-2xl bg-secondary/20 border border-border/40">
           <div className="flex justify-between">
             <span className="text-muted-foreground font-medium">Core Skills Match</span>
-            <span className="font-bold text-emerald-400">{Math.round(match.core_skill_coverage * 100)}%</span>
+            <span className="font-bold text-emerald-400">{coreCoveragePercent}%</span>
           </div>
           <div className="h-1.5 rounded-full bg-secondary/80 overflow-hidden">
             <div
               className="h-full rounded-full bg-emerald-400"
-              style={{ width: `${Math.round(match.core_skill_coverage * 100)}%` }}
+              style={{ width: `${coreCoveragePercent}%` }}
             />
           </div>
         </div>
@@ -91,12 +101,12 @@ export function RoleMatchCard({ match, isExpandedDefault = false }: RoleMatchCar
         <div className="space-y-1.5 p-3 rounded-2xl bg-secondary/20 border border-border/40">
           <div className="flex justify-between">
             <span className="text-muted-foreground font-medium">Advanced Architecture Match</span>
-            <span className="font-bold text-primary">{Math.round(match.advanced_skill_coverage * 100)}%</span>
+            <span className="font-bold text-primary">{advancedCoveragePercent}%</span>
           </div>
           <div className="h-1.5 rounded-full bg-secondary/80 overflow-hidden">
             <div
               className="h-full rounded-full bg-primary"
-              style={{ width: `${Math.round(match.advanced_skill_coverage * 100)}%` }}
+              style={{ width: `${advancedCoveragePercent}%` }}
             />
           </div>
         </div>

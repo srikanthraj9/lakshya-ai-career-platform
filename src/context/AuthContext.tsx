@@ -4,7 +4,7 @@ import { authService } from "@/services/auth";
 import { sessionService } from "@/services/sessionService";
 import { persistenceMigrationService } from "@/services/persistenceMigrationService";
 import { purgeLegacyUnscopedStorage } from "@/lib/userStorage";
-import type { User } from "@/types";
+import type { User, RegisterResponse } from "@/types";
 
 interface AuthContextType {
   user: User | null;
@@ -15,7 +15,7 @@ interface AuthContextType {
   pendingEmail: string | null;
   setPendingEmail: (email: string | null) => void;
   login: (email: string, password: string) => Promise<User>;
-  register: (fullName: string, email: string, password: string) => Promise<void>;
+  register: (fullName: string, email: string, password: string) => Promise<RegisterResponse>;
   setAuthSession: (token: string) => Promise<User>;
   refreshUser: () => Promise<User | null>;
   logout: () => void;
@@ -162,10 +162,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (fullName: string, email: string, password: string) => {
+  const register = async (fullName: string, email: string, password: string): Promise<RegisterResponse> => {
     const res = await authService.register({ full_name: fullName, email, password });
     setPendingEmail(email);
     console.info("[Auth] Registered user pending verification", res);
+    return res;
   };
 
   const setAuthSession = async (token: string): Promise<User> => {
@@ -227,8 +228,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+export { AuthContext };
+
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) throw new Error("useAuth must be used within AuthProvider");
   return context;
+}
+
+export function useOptionalAuth() {
+  return useContext(AuthContext);
 }

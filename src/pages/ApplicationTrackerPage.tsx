@@ -27,6 +27,8 @@ export default function ApplicationTrackerPage() {
     applications,
     stats,
     outcomeInsights,
+    isLoading,
+    isError,
     transitionStage,
     createApplication,
     deleteApplication,
@@ -40,6 +42,19 @@ export default function ApplicationTrackerPage() {
   const [selectedAppForOutreach, setSelectedAppForOutreach] = useState<JobApplication | null>(null);
   const [selectedCompanyForIntel, setSelectedCompanyForIntel] = useState<string | null>(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
+
+  // Sync open modals with current application in state (e.g. after stage transition)
+  const activeDetailApp = selectedAppForDetail
+    ? applications.find((a) => a.id === selectedAppForDetail.id) || selectedAppForDetail
+    : null;
+
+  const activeDebriefApp = selectedAppForDebrief
+    ? applications.find((a) => a.id === selectedAppForDebrief.id) || selectedAppForDebrief
+    : null;
+
+  const activeOutreachApp = selectedAppForOutreach
+    ? applications.find((a) => a.id === selectedAppForOutreach.id) || selectedAppForOutreach
+    : null;
 
   return (
     <PageTransition>
@@ -113,8 +128,36 @@ export default function ApplicationTrackerPage() {
           </div>
         </div>
 
+        {/* Error Notice */}
+        {isError && (
+          <div className="glass-card rounded-2xl p-4 border border-rose-500/30 bg-rose-500/10 flex items-center justify-between text-xs text-rose-300">
+            <span>Unable to load live application pipeline data. Please verify your connection.</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.location.reload()}
+              className="text-xs rounded-xl border-rose-500/30 hover:bg-rose-500/20 text-rose-200"
+            >
+              Retry
+            </Button>
+          </div>
+        )}
+
+        {/* Loading Skeleton */}
+        {isLoading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 animate-pulse">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="h-72 rounded-3xl border border-border/40 bg-secondary/10 p-4 space-y-3">
+                <div className="h-4 w-24 bg-secondary/40 rounded-lg" />
+                <div className="h-28 w-full bg-secondary/20 rounded-2xl" />
+                <div className="h-28 w-full bg-secondary/20 rounded-2xl" />
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Workspace Body */}
-        {activeTab === "kanban" && (
+        {!isLoading && activeTab === "kanban" && (
           <ApplicationKanban
             applications={applications}
             onTransition={transitionStage}
@@ -127,7 +170,7 @@ export default function ApplicationTrackerPage() {
           />
         )}
 
-        {activeTab === "table" && (
+        {!isLoading && activeTab === "table" && (
           <ApplicationTable
             applications={applications}
             onTransition={transitionStage}
@@ -139,7 +182,7 @@ export default function ApplicationTrackerPage() {
           />
         )}
 
-        {activeTab === "analytics" && (
+        {!isLoading && activeTab === "analytics" && (
           <ApplicationFunnelAnalytics
             stats={stats}
             outcomeInsights={outcomeInsights}
@@ -148,9 +191,9 @@ export default function ApplicationTrackerPage() {
 
         {/* Modals & Drawers */}
         <ApplicationDetailModal
-          isOpen={Boolean(selectedAppForDetail)}
+          isOpen={Boolean(activeDetailApp)}
           onClose={() => setSelectedAppForDetail(null)}
-          application={selectedAppForDetail}
+          application={activeDetailApp}
           onTransition={transitionStage}
           onOpenDebrief={(app) => {
             setSelectedAppForDetail(null);
@@ -159,9 +202,9 @@ export default function ApplicationTrackerPage() {
         />
 
         <InterviewDebriefModal
-          isOpen={Boolean(selectedAppForDebrief)}
+          isOpen={Boolean(activeDebriefApp)}
           onClose={() => setSelectedAppForDebrief(null)}
-          application={selectedAppForDebrief}
+          application={activeDebriefApp}
           onSaveDebrief={logDebrief}
         />
 
@@ -173,9 +216,9 @@ export default function ApplicationTrackerPage() {
         />
 
         <ApplicationOutreachModal
-          isOpen={Boolean(selectedAppForOutreach)}
+          isOpen={Boolean(activeOutreachApp)}
           onClose={() => setSelectedAppForOutreach(null)}
-          application={selectedAppForOutreach}
+          application={activeOutreachApp}
         />
 
         <AddApplicationModal

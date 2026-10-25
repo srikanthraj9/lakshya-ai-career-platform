@@ -12,7 +12,7 @@ interface ResumeHealthCardProps {
 }
 
 export function ResumeHealthCard({
-  overallScore = 95,
+  overallScore = 0,
   breakdown,
   onViewDiagnostics,
 }: ResumeHealthCardProps) {
@@ -26,22 +26,22 @@ export function ResumeHealthCard({
   const metrics = [
     {
       label: "Keyword Match",
-      value: breakdown?.keyword_match && breakdown.keyword_match > 0 ? Math.round(breakdown.keyword_match) : Math.min(overallScore, 96),
+      value: breakdown?.keyword_match != null ? Math.round(breakdown.keyword_match) : overallScore,
       color: "from-primary to-accent",
     },
     {
       label: "Formatting & Structure",
-      value: breakdown?.formatting && breakdown.formatting > 0 ? Math.round(breakdown.formatting) : Math.min(overallScore + 2, 98),
+      value: breakdown?.formatting != null ? Math.round(breakdown.formatting) : overallScore,
       color: "from-emerald-500 to-teal-400",
     },
     {
       label: "Action Verbs & Impact",
-      value: breakdown?.action_verbs && breakdown.action_verbs > 0 ? Math.round(breakdown.action_verbs) : Math.max(overallScore - 5, 80),
+      value: breakdown?.action_verbs != null ? Math.round(breakdown.action_verbs) : overallScore,
       color: "from-accent to-sky-400",
     },
     {
       label: "Section Coverage",
-      value: breakdown?.section_coverage && breakdown.section_coverage > 0 ? Math.round(breakdown.section_coverage) : Math.min(overallScore + 1, 95),
+      value: breakdown?.section_coverage != null ? Math.round(breakdown.section_coverage) : overallScore,
       color: "from-purple-500 to-primary",
     },
   ];
@@ -91,16 +91,28 @@ export function ResumeHealthCard({
         ))}
       </div>
 
-      {/* Highlights summary */}
-      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50 text-xs">
-        <div className="flex items-center gap-1.5 text-emerald-400">
-          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-          <span>ATS Parser Friendly</span>
+      {/* Highlights summary & View Diagnostics Action */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/50 text-xs">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-emerald-400">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            <span>ATS Parser Friendly</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-emerald-400">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+            <span>High Tech Stack Match</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 text-emerald-400">
-          <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-          <span>High Tech Stack Match</span>
-        </div>
+
+        {onViewDiagnostics && (
+          <button
+            onClick={onViewDiagnostics}
+            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 ml-auto"
+          >
+            <span>View Full ATS Diagnostics</span>
+            <span>&rarr;</span>
+          </button>
+        )}
       </div>
     </div>
   );

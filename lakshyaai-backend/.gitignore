@@ -13,7 +13,9 @@ __pycache__/
 # Local environment and secrets
 .env
 .env.*
+.env.local
 !.env.example
+!.env.*.example
 
 # Testing and coverage
 .pytest_cache/
@@ -23,5 +25,12 @@ htmlcov/
 # Logs
 *.log
 
-# Uploads
+# Uploads and storage
 uploads/
+storage/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+lakshyaai.db

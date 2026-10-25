@@ -17,8 +17,10 @@ export function ResumeRecommendations({
   onFixWithAI,
   onViewSkills,
 }: ResumeRecommendationsProps) {
-  const weakPoints = feedback?.weak_points || [];
-  const missing = missingSkills.length > 0 ? missingSkills : feedback?.missing_skills || [];
+  const weakPoints = Array.isArray(feedback?.weak_points) ? feedback.weak_points : [];
+  const safeMissing = Array.isArray(missingSkills) ? missingSkills : [];
+  const feedbackMissing = Array.isArray(feedback?.missing_skills) ? feedback.missing_skills : [];
+  const missing = safeMissing.length > 0 ? safeMissing : feedbackMissing;
 
   return (
     <div className="glass-card rounded-3xl p-6 space-y-4">

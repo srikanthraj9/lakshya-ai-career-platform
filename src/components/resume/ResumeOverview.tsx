@@ -26,7 +26,7 @@ export function ResumeOverview({
         <ResumeDocumentPreview
           fileName={resume.file_name || resume.original_filename}
           extractedText={resume.extracted_text || resume.parsed_text}
-          atsScore={resume.ats_score || 95}
+          atsScore={resume.ats_score ?? 0}
           onDownload={onDownloadOriginal}
           isDownloading={isDownloading}
         />
@@ -35,7 +35,7 @@ export function ResumeOverview({
       {/* Right Column: Health Score & AI Recommendations (7 cols) */}
       <div className="lg:col-span-7 space-y-6">
         <ResumeHealthCard
-          overallScore={resume.ats_score || 95}
+          overallScore={resume.ats_score ?? 0}
           breakdown={resume.breakdown}
           onViewDiagnostics={() => onSwitchTab("ats")}
         />

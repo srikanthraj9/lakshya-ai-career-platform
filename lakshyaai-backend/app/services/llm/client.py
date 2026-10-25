@@ -20,16 +20,25 @@ class LLMClient:
             self.provider = "openrouter"
             self.api_key = settings.openrouter_api_key
             self.base_url = settings.openrouter_base_url
+        elif settings.groq_api_key:
+            self.provider = "groq"
+            self.api_key = settings.groq_api_key
+            self.base_url = settings.groq_base_url
         else:
             self.provider = "disabled"
             self.api_key = None
             self.base_url = ""
+
+    def reload_config(self) -> None:
+        self.__init__()
 
     @property
     def is_configured(self) -> bool:
         return bool(self.api_key)
 
     def _build_model_name(self, model: str | None) -> str:
+        if self.provider == "groq":
+            return model or settings.groq_model
         configured_model = model or settings.llm_model
         if self.provider == "openai" and configured_model.startswith("openai/"):
             return configured_model.split("/", 1)[1]

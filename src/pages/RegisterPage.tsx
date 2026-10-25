@@ -141,10 +141,17 @@ export default function RegisterPage() {
 
       setLoading(true);
       try {
-        await register(trimmedName, trimmedEmail, password);
+        const res = await register(trimmedName, trimmedEmail, password);
         setErrorMessage(null);
-        toast.success("Account created! Please verify your email to begin onboarding.");
-        navigate("/verify-email");
+        if (res && res.email_sent === false) {
+          toast.warning(
+            res.message || "Account created, but verification email could not be delivered. Please click Resend on the next screen.",
+            { duration: 6000 },
+          );
+        } else {
+          toast.success("Account created! Please verify your email to begin onboarding.");
+        }
+        navigate("/verify-email", { state: { emailSent: res?.email_sent !== false } });
       } catch (error) {
         const message = getApiErrorMessage(error);
         setErrorMessage(message);

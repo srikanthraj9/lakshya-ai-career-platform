@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useParams, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { MessageSquare, Sparkles } from "lucide-react";
 
 import { PageTransition } from "@/components/PageTransition";
 import { ErrorFallback } from "@/components/ErrorFallback";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 
 import {
   InterviewStudioHeader,
@@ -21,21 +23,86 @@ import { InterviewHistory } from "@/components/interview/InterviewHistory";
 
 import { interviewService } from "@/services/interview";
 import { getApiErrorMessage } from "@/services/api";
+import { getActiveTargetRole } from "@/lib/navigationStatus";
+import { useOptionalAuth } from "@/context/AuthContext";
+import { useOptionalCareerContext } from "@/context/CareerContext";
 import type { InterviewSession, InterviewSessionListItem, InterviewReport as InterviewReportType } from "@/types";
 
 interface InterviewStudioPageProps {
   initialStage?: InterviewStage;
   mode?: InterviewMode;
+  initialRole?: string;
 }
 
 export default function InterviewStudioPage({
   initialStage = "setup",
   mode: propMode = "text",
+  initialRole = "",
 }: InterviewStudioPageProps) {
   const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+
+  const auth = useOptionalAuth();
+  const career = useOptionalCareerContext();
+
+  // Multi-tier Resolution for Target Job Role:
+  // 1. Explicit component prop
+  // 2. URL search parameters (?role=... or ?targetRole=...)
+  // 3. Location router state
+  // 4. CareerContext targetRole
+  // 5. User-scoped storage for authenticated user
+  // 6. Generic/fallback browser storage scan
+  const targetRole = useMemo(() => {
+    if (initialRole?.trim() && initialRole.trim() !== "No Target Role Selected") {
+      return initialRole.trim();
+    }
+
+    const queryRole = searchParams.get("role")?.trim() || searchParams.get("targetRole")?.trim();
+    if (queryRole && queryRole !== "No Target Role Selected") {
+      return queryRole;
+    }
+
+    const stateObj = location.state as { role?: string; targetRole?: string } | null;
+    const stateRole = stateObj?.role?.trim() || stateObj?.targetRole?.trim();
+    if (stateRole && stateRole !== "No Target Role Selected") {
+      return stateRole;
+    }
+
+    if (career?.targetRole && career.targetRole.trim() !== "No Target Role Selected") {
+      return career.targetRole.trim();
+    }
+
+    const userId = auth?.user?.id;
+    if (userId) {
+      const activeStored = getActiveTargetRole(userId).title;
+      if (activeStored && activeStored !== "No Target Role Selected") {
+        return activeStored;
+      }
+    }
+
+    // Fallback: check localStorage for any active lakshya:*:target_role
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("lakshya:") && key.endsWith(":target_role")) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.title && parsed.title !== "No Target Role Selected") {
+              return parsed.title;
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore storage access restrictions if any
+    }
+
+    return "";
+  }, [initialRole, searchParams, location.state, career?.targetRole, auth?.user?.id]);
 
   const [mode, setMode] = useState<InterviewMode>(propMode);
   const [stage, setStage] = useState<InterviewStage>(
@@ -65,7 +132,7 @@ export default function InterviewStudioPage({
   }, [urlSessionId]);
 
   // 1. Fetch Past Sessions List
-  const { data: pastSessions = [], isLoading: isHistoryLoading, refetch: refetchHistory } = useQuery<InterviewSessionListItem[]>({
+  const { data: pastSessions = [], isLoading: isHistoryLoading } = useQuery<InterviewSessionListItem[]>({
     queryKey: ["interview-sessions-list"],
     queryFn: interviewService.listSessions,
     retry: 2,
@@ -199,7 +266,7 @@ export default function InterviewStudioPage({
             </motion.div>
           )}
 
-          {stage === "active" && mode === "text" && activeSession && (
+          {stage === "active" && mode === "text" && (
             <motion.div
               key="active-text"
               initial={{ opacity: 0, y: 10 }}
@@ -207,11 +274,34 @@ export default function InterviewStudioPage({
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              <TextInterviewSession
-                session={activeSession}
-                onComplete={handleSessionComplete}
-                onExit={handleResetToSetup}
-              />
+              {activeSession ? (
+                <TextInterviewSession
+                  session={activeSession}
+                  onComplete={handleSessionComplete}
+                  onExit={handleResetToSetup}
+                />
+              ) : (
+                <div className="glass-card gradient-border rounded-3xl p-8 sm:p-12 max-w-xl mx-auto text-center space-y-5">
+                  <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-border/80 text-muted-foreground mx-auto flex items-center justify-center">
+                    <MessageSquare className="h-7 w-7 text-primary" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="font-display text-xl font-bold text-foreground">
+                      No Active Interview in Progress
+                    </h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                      You do not have an active interview session running. Launch a new simulation to practice your technical and behavioral responses.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleResetToSetup}
+                    variant="gradient"
+                    className="h-10 px-5 rounded-xl text-xs font-semibold text-white shadow-md hover:shadow-primary/25"
+                  >
+                    Configure New Interview
+                  </Button>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -258,7 +348,28 @@ export default function InterviewStudioPage({
                   report={reportData}
                   onNewInterview={handleResetToSetup}
                 />
-              ) : null}
+              ) : (
+                <div className="glass-card gradient-border rounded-3xl p-8 sm:p-12 max-w-xl mx-auto text-center space-y-5">
+                  <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-border/80 text-muted-foreground mx-auto flex items-center justify-center">
+                    <Sparkles className="h-7 w-7 text-primary" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="font-display text-xl font-bold text-foreground">
+                      No Report Selected
+                    </h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                      Please select a completed session from your interview history or start a new simulation to review your score and feedback.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleResetToSetup}
+                    variant="gradient"
+                    className="h-10 px-5 rounded-xl text-xs font-semibold text-white shadow-md hover:shadow-primary/25"
+                  >
+                    Start New Interview
+                  </Button>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

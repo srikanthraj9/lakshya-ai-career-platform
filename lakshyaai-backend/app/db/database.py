@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
@@ -8,11 +9,33 @@ ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(ENV_PATH)
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+
+def _clean_database_url(url: str | None) -> str | None:
+    if not url:
+        return url
+    cleaned = re.sub(r"[?&]pgbouncer=true", "", url)
+    if "?" not in cleaned and "&" in cleaned:
+        cleaned = cleaned.replace("&", "?", 1)
+    return cleaned
+
+
+RAW_DB_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = _clean_database_url(RAW_DB_URL)
+
+# Fallback to local SQLite if unconfigured or default placeholder password present
+if not DATABASE_URL or "your-db-password" in DATABASE_URL:
+    DATABASE_URL = "sqlite:///./lakshyaai.db"
+
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args["check_same_thread"] = False
+else:
+    connect_args["connect_timeout"] = 5
 
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
+    connect_args=connect_args,
 )
 
 
@@ -46,7 +69,9 @@ def check_database_connection():
         with engine.connect() as connection:
             return True
     except Exception as e:
-        print("Database connection error:", str(e))
+        msg = str(e)
+        sanitized = re.sub(r":([^/@:\s]+)@", r":***@", msg)
+        print("Database connection error:", sanitized)
         return False
 
 

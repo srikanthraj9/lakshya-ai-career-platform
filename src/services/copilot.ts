@@ -10,12 +10,22 @@ export const copilotService = {
   async chat(
     messages: CopilotChatMessage[],
     conversationId?: string,
+    candidateContext?: Record<string, any>,
   ): Promise<CopilotResponse> {
     const res = await api.post<CopilotResponse>("/copilot/chat", {
       messages,
       conversation_id: conversationId,
+      candidate_context: candidateContext,
     });
     return res.data;
+  },
+
+  sendMessage(
+    messages: CopilotChatMessage[],
+    conversationId?: string,
+    candidateContext?: Record<string, any>,
+  ): Promise<CopilotResponse> {
+    return this.chat(messages, conversationId, candidateContext);
   },
 
   async listConversations(): Promise<CopilotConversation[]> {
@@ -37,6 +47,13 @@ export const copilotService = {
 
   async deleteConversation(id: string): Promise<{ message: string }> {
     const res = await api.delete<{ message: string }>(`/copilot/conversations/${id}`);
+    return res.data;
+  },
+
+  async renameConversation(id: string, title: string): Promise<CopilotConversation> {
+    const res = await api.patch<CopilotConversation>(`/copilot/conversations/${id}`, null, {
+      params: { title },
+    });
     return res.data;
   },
 };

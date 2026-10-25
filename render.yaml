@@ -1,0 +1,70 @@
+# ==============================================================================
+# LAKSHYA AI - RENDER DEPLOYMENT BLUEPRINT
+# Defines multi-service architecture for frontend and backend deployment
+# ==============================================================================
+
+services:
+  # Backend REST API Service
+  - type: web
+    name: lakshya-ai-career-platform
+    env: python
+    rootDir: lakshyaai-backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: ENVIRONMENT
+        value: staging
+      - key: DEBUG
+        value: false
+      - key: RATE_LIMIT_ENABLED
+        value: true
+      - key: PORT
+        value: 10000
+      - key: APP_NAME
+        value: LakshyaAI
+      - key: CORS_ORIGINS
+        value: https://lakshya-ai.onrender.com,http://localhost:5173,http://127.0.0.1:5173
+      - key: FRONTEND_URL
+        value: https://lakshya-ai.onrender.com
+      - key: AI_PROVIDER
+        value: groq
+      - key: GROQ_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      # Secret variables to be set in Render dashboard:
+      # - DATABASE_URL
+      # - DIRECT_URL
+      # - SECRET_KEY
+      # - GROQ_API_KEY
+      # - GOOGLE_CLIENT_ID
+      # - GOOGLE_CLIENT_SECRET
+      # - SMTP_HOST
+      # - SMTP_USER
+      # - SMTP_PASSWORD
+
+  # Frontend Single-Page Application (SPA)
+  - type: web
+    name: lakshya-ai
+    env: static
+    rootDir: .
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    plan: free
+    autoDeploy: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://lakshya-ai-career-platform.onrender.com/api
+      - key: VITE_APP_ENV
+        value: staging
+      - key: VITE_TELEMETRY_MODE
+        value: console

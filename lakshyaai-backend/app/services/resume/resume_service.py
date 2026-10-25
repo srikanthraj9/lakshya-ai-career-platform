@@ -139,6 +139,7 @@ class ResumeService:
             "id": resume.id,
             "file_name": resume.file_name or resume.original_filename,
             "created_at": resume.created_at,
+            "ats_score": int(round(resume.ats_score)) if resume.ats_score is not None else None,
         }
 
     @staticmethod

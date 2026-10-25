@@ -1,0 +1,29 @@
+# Version control
+.git
+.gitignore
+
+# Environment & credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python artifacts & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# Testing & temporary
+.pytest_cache/
+.coverage
+htmlcov/
+scratch/
+*.log

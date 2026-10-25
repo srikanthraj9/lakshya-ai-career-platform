@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { MessageSquare, Mic, Sparkles, Loader2, ArrowRight, ShieldCheck, Zap, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,12 @@ export function InterviewSetup({
   const [role, setRole] = useState(initialRole);
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [mode, setMode] = useState<InterviewMode>(initialMode);
+
+  useEffect(() => {
+    if (initialRole) {
+      setRole(initialRole);
+    }
+  }, [initialRole]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +70,30 @@ export function InterviewSetup({
             className="h-11 rounded-xl border-border/80 bg-secondary/30 text-xs font-medium focus:border-primary/50"
             required
           />
+          {/* Quick-select Popular Role Pills */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[11px] font-medium text-muted-foreground mr-1">Popular roles:</span>
+            {[
+              "Full Stack Engineer",
+              "Frontend Developer",
+              "Backend Engineer",
+              "Data Scientist",
+              "DevOps Engineer",
+            ].map((popularRole) => (
+              <button
+                key={popularRole}
+                type="button"
+                onClick={() => setRole(popularRole)}
+                className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all ${
+                  role === popularRole
+                    ? "border-primary/50 bg-primary/10 text-primary font-semibold shadow-sm"
+                    : "border-border/60 bg-secondary/20 text-muted-foreground hover:text-foreground hover:bg-secondary/40"
+                }`}
+              >
+                {popularRole}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Mode Selector Segment */}
