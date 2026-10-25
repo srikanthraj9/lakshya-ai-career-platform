@@ -53,4 +53,7 @@ jobs:
 
       - name: Run Backend Test Suite
         working-directory: ./lakshyaai-backend
+        env:
+          TESTING: "true"
+          DATABASE_URL: "sqlite:///./lakshyaai.db"
         run: python -m unittest discover -s tests -p "test_*.py"

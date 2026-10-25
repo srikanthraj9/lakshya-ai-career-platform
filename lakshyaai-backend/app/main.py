@@ -22,6 +22,7 @@ def startup_event():
     # In test mode or local SQLite, initialize tables for in-memory / local test suites
     if os.environ.get("TESTING") == "true" or engine.dialect.name == "sqlite":
         try:
+            from app.db import models  # noqa: F401
             Base.metadata.create_all(bind=engine)
         except Exception as init_err:
             logger.warning("Test schema initialization warning: %s", init_err)

@@ -2,6 +2,7 @@ import secrets
 import hashlib
 import logging
 from typing import Optional, Dict, Any, Tuple
+import uuid
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
 from fastapi import HTTPException, status
@@ -35,13 +36,22 @@ class SimulationService:
     def start_simulation(
         db: Session,
         admin_user: models.User,
-        target_user_id: UUID,
+        target_user_id: Any,
         reason: str = "Admin diagnostic investigation",
         duration_minutes: int = 30,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
     ) -> Tuple[models.AdminSimulationSession, str]:
         # 1. Verify target user exists
+        if isinstance(target_user_id, str):
+            try:
+                target_user_id = uuid.UUID(target_user_id)
+            except (ValueError, TypeError, AttributeError):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Target candidate for simulation not found."
+                )
+
         target_user = db.query(models.User).filter(models.User.id == target_user_id).first()
         if not target_user:
             raise HTTPException(

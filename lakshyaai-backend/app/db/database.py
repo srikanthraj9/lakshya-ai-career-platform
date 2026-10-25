@@ -75,16 +75,21 @@ def check_database_connection():
         return False
 
 
-# =========================
-# NEW: CREATE ALL TABLES
-# =========================
-
 def create_tables():
     """
     Create all tables from SQLAlchemy models.
-    Useful for development environments.
+    Useful for development environments and testing suites.
     """
+    from app.db import models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+
+
+# Auto-initialize tables when running against SQLite (development or test fallback)
+if DATABASE_URL.startswith("sqlite"):
+    try:
+        create_tables()
+    except Exception:
+        pass
 
 
 # =========================
