@@ -11,6 +11,12 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
+# Build arguments for API configuration
+ARG VITE_API_URL
+ARG VITE_API_BASE_URL
+ENV VITE_API_URL=$VITE_API_URL \
+    VITE_API_BASE_URL=$VITE_API_BASE_URL
+
 # Copy source and build
 COPY . .
 RUN npm run build
@@ -22,20 +28,8 @@ WORKDIR /usr/share/nginx/html
 # Copy compiled assets from builder
 COPY --from=builder /app/dist .
 
-# Custom Nginx configuration for client-side routing & caching
-RUN echo 'server { \
-    listen 80; \
-    server_name localhost; \
-    root /usr/share/nginx/html; \
-    index index.html; \
-    location / { \
-        try_files $uri $uri/ /index.html; \
-    } \
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ { \
-        expires 1y; \
-        add_header Cache-Control "public, no-transform"; \
-    } \
-}' > /etc/nginx/conf.d/default.conf
+# Production Nginx configuration with reverse proxy and client routing
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

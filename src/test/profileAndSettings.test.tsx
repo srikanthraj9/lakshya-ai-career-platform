@@ -37,6 +37,19 @@ vi.mock("@/hooks/useCareerContext", () => ({
   }),
 }));
 
+// Mock NotificationContext
+vi.mock("@/context/NotificationContext", () => ({
+  useNotifications: () => ({
+    notifications: [],
+    unreadCount: 0,
+    addNotification: vi.fn(),
+    markAsRead: vi.fn(),
+    markAllAsRead: vi.fn(),
+    clearAll: vi.fn(),
+  }),
+  NotificationProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 // Mock profileService
 vi.mock("@/services/profileService", () => ({
   profileService: {

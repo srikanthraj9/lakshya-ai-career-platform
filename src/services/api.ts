@@ -2,25 +2,32 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { telemetryService } from "./telemetryService";
 import { sessionService } from "./sessionService";
 
-const DEFAULT_API_BASE_URL = "http://127.0.0.1:10000/api";
+export const DEFAULT_API_BASE_URL = "http://127.0.0.1:10000/api";
 const HEALTH_CHECK_TTL_MS = 10000;
 
-function resolveApiBaseUrl(): string {
-  if (import.meta.env.DEV) {
+export interface ApiEnvConfig {
+  DEV?: boolean;
+  VITE_API_BASE_URL?: string;
+  VITE_API_URL?: string;
+}
+
+export function resolveApiBaseUrl(env?: ApiEnvConfig): string {
+  const isDev = env ? Boolean(env.DEV) : import.meta.env.DEV;
+  if (isDev) {
     return DEFAULT_API_BASE_URL;
   }
 
-  const explicitBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  const explicitBaseUrl = (env ? env.VITE_API_BASE_URL : import.meta.env.VITE_API_BASE_URL)?.trim();
   if (explicitBaseUrl) {
     return explicitBaseUrl.replace(/\/+$/, "");
   }
 
-  const apiOrigin = import.meta.env.VITE_API_URL?.trim();
+  const apiOrigin = (env ? env.VITE_API_URL : import.meta.env.VITE_API_URL)?.trim();
   if (apiOrigin) {
     return `${apiOrigin.replace(/\/+$/, "")}/api`;
   }
 
-  return DEFAULT_API_BASE_URL;
+  return "/api";
 }
 
 function normalizeApiBaseUrl(rawUrl?: string): string {
