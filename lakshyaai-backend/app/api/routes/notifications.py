@@ -14,9 +14,25 @@ VALID_NOTIFICATION_TYPES = {
     "job_match",
     "roadmap_reminder",
     "interview_practice",
+    "interview_completed",
+    "resume_analyzed",
+    "goal_updated",
+    "application_status",
     "career_insight",
     "system",
 }
+
+
+@router.get("/unread-count")
+def get_unread_count(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    count = db.query(models.Notification).filter(
+        models.Notification.user_id == current_user.id,
+        models.Notification.is_read == False,
+    ).count()
+    return {"unread_count": count}
 
 
 @router.get("", response_model=List[schemas.NotificationResponse])
@@ -94,7 +110,28 @@ def mark_notification_read(
     return notification
 
 
+@router.patch("/{notification_id}/unread", response_model=schemas.NotificationResponse)
+def mark_notification_unread(
+    notification_id: UUID,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    notification = db.query(models.Notification).filter(
+        models.Notification.id == notification_id,
+        models.Notification.user_id == current_user.id,
+    ).first()
+
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notification not found")
+
+    notification.is_read = False
+    db.commit()
+    db.refresh(notification)
+    return notification
+
+
 @router.post("/read-all")
+@router.patch("/read-all")
 def mark_all_notifications_read(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),

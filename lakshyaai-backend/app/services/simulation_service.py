@@ -119,7 +119,11 @@ class SimulationService:
                 detail="Invalid or expired simulation session token."
             )
 
-        if session_record.expires_at < now:
+        expires_at = session_record.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+        if expires_at < now:
             session_record.is_active = False
             session_record.ended_at = now
             session_record.ended_reason = "Expired"

@@ -69,3 +69,38 @@ class ResumeRewriteStorage:
         if not tex_path.exists():
             raise NotFoundException("Generated LaTeX not found")
         return tex_path
+
+    @classmethod
+    def delete_user_rewrites(cls, user_id: UUID | str) -> int:
+        """Permanently delete all generated resume rewrites for a user with path traversal & symlink guards."""
+        import uuid as uuid_pkg
+        try:
+            target_owner = str(uuid_pkg.UUID(str(user_id)))
+        except (ValueError, TypeError):
+            return 0
+
+        deleted_count = 0
+        root = cls._root().resolve()
+        if not root.exists() or root.is_symlink():
+            return 0
+
+        for doc_dir in root.iterdir():
+            if not doc_dir.is_dir() or doc_dir.is_symlink():
+                continue
+            if not doc_dir.resolve().is_relative_to(root):
+                continue
+            manifest_file = doc_dir / "manifest.json"
+            if manifest_file.exists() and not manifest_file.is_symlink():
+                try:
+                    data = json.loads(manifest_file.read_text(encoding="utf-8"))
+                    if str(data.get("owner_id")) == target_owner:
+                        for item in doc_dir.iterdir():
+                            if item.is_symlink():
+                                item.unlink(missing_ok=True)
+                            elif item.is_file():
+                                item.unlink(missing_ok=True)
+                        doc_dir.rmdir()
+                        deleted_count += 1
+                except Exception:
+                    pass
+        return deleted_count

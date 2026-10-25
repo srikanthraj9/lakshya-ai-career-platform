@@ -27,6 +27,12 @@ def require_admin(
             detail="Account is suspended."
         )
 
+    if not getattr(current_user, "is_email_verified", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification required for administrative access."
+        )
+
     user_role = getattr(current_user, "role", "user")
     if user_role not in ["admin", "super_admin"]:
         raise HTTPException(
@@ -37,21 +43,37 @@ def require_admin(
 
 
 def require_super_admin(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    request: Request = None,
 ) -> User:
-    if getattr(current_user, "is_suspended", False):
+    if isinstance(current_user, Request) and isinstance(request, User):
+        request, current_user = current_user, request
+    elif isinstance(request, User) and not isinstance(current_user, User):
+        current_user = request
+        request = None
+
+    actor = getattr(getattr(request, "state", None), "actor", None) if request else None
+    effective_user = actor or current_user
+
+    if getattr(effective_user, "is_suspended", False):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is suspended."
         )
 
-    user_role = getattr(current_user, "role", "user")
+    if not getattr(effective_user, "is_email_verified", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification required for super administrator access."
+        )
+
+    user_role = getattr(effective_user, "role", "user")
     if user_role != "super_admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Super administrator access required."
         )
-    return current_user
+    return effective_user
 
 
 def get_simulation_context(

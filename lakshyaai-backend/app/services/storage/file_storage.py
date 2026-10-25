@@ -50,3 +50,41 @@ class FileStorageService:
         if p.exists():
             return p
         return None
+
+    @classmethod
+    def delete_user_files(cls, user_id: UUID | str) -> int:
+        """Permanently delete all stored resume files for a user with path traversal & symlink guards."""
+        import uuid as uuid_pkg
+        try:
+            valid_user_id = str(uuid_pkg.UUID(str(user_id)))
+        except (ValueError, TypeError):
+            logger.warning("Invalid UUID rejected for file deletion: %s", user_id)
+            return 0
+
+        resumes_root = (cls._get_upload_root() / "resumes").resolve()
+        user_dir = (resumes_root / valid_user_id).resolve()
+
+        # Strict containment check against path traversal
+        if not user_dir.is_relative_to(resumes_root):
+            logger.error("Path traversal attempt detected during deletion: %s", user_id)
+            return 0
+
+        if not user_dir.exists() or user_dir.is_symlink():
+            return 0
+
+        deleted_count = 0
+        for item in user_dir.iterdir():
+            if item.is_symlink():
+                item.unlink(missing_ok=True)
+                continue
+            if item.is_file():
+                item.unlink(missing_ok=True)
+                deleted_count += 1
+
+        try:
+            user_dir.rmdir()
+        except Exception:
+            pass
+
+        logger.info("Deleted %d resume files for user_id=%s", deleted_count, valid_user_id)
+        return deleted_count

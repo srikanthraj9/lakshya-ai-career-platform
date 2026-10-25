@@ -12,6 +12,7 @@ class TestAdminPermissionsAndRoles(unittest.TestCase):
             email="user@lakshya.ai",
             role="user",
             is_suspended=False,
+            is_email_verified=True,
         )
         with self.assertRaises(HTTPException) as ctx:
             require_admin(user)
@@ -23,6 +24,7 @@ class TestAdminPermissionsAndRoles(unittest.TestCase):
             email="admin@lakshya.ai",
             role="admin",
             is_suspended=False,
+            is_email_verified=True,
         )
         res = require_admin(admin_user)
         self.assertEqual(res.role, "admin")
@@ -33,6 +35,7 @@ class TestAdminPermissionsAndRoles(unittest.TestCase):
             email="srikanthuppalapati09@gmail.com",
             role="super_admin",
             is_suspended=False,
+            is_email_verified=True,
         )
         res = require_super_admin(super_admin)
         self.assertEqual(res.role, "super_admin")
@@ -43,6 +46,7 @@ class TestAdminPermissionsAndRoles(unittest.TestCase):
             email="admin@lakshya.ai",
             role="admin",
             is_suspended=False,
+            is_email_verified=True,
         )
         with self.assertRaises(HTTPException) as ctx:
             require_super_admin(admin_user)
@@ -54,9 +58,22 @@ class TestAdminPermissionsAndRoles(unittest.TestCase):
             email="suspended_admin@lakshya.ai",
             role="admin",
             is_suspended=True,
+            is_email_verified=True,
         )
         with self.assertRaises(HTTPException) as ctx:
             require_admin(suspended_admin)
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_unverified_admin_rejected(self):
+        unverified_admin = models.User(
+            id=uuid.uuid4(),
+            email="unverified_admin@lakshya.ai",
+            role="admin",
+            is_suspended=False,
+            is_email_verified=False,
+        )
+        with self.assertRaises(HTTPException) as ctx:
+            require_admin(unverified_admin)
         self.assertEqual(ctx.exception.status_code, 403)
 
 
