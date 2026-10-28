@@ -214,6 +214,28 @@ class TestAdminSuperAdminProtectionAndAnnouncements(unittest.TestCase):
         self.assertNotIn("password", raw_text.lower())
         self.assertNotIn("secret", raw_text.lower())
 
+    def test_system_health_diagnostic_never_leaks_forbidden_words_on_degraded_auth(self):
+        """
+        Regression test: When authentication entropy is low (< 16 chars),
+        diagnostic error message must accurately report degradation without
+        leaking credential keywords ('secret' or 'password').
+        """
+        from unittest.mock import patch
+        import json
+        from app.services.health_service import HealthService
+        from app.db.database import SessionLocal
+
+        with patch("app.services.health_service.settings.SECRET_KEY", "short"):
+            db = SessionLocal()
+            try:
+                diag = HealthService.get_system_diagnostics(db)
+                self.assertEqual(diag["services"]["authentication"], "degraded")
+                raw_json = json.dumps(diag).lower()
+                self.assertNotIn("secret", raw_json)
+                self.assertNotIn("password", raw_json)
+            finally:
+                db.close()
+
 
 if __name__ == "__main__":
     unittest.main()

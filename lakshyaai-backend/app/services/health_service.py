@@ -108,7 +108,7 @@ class HealthService:
                 service_details["authentication"] = {
                     "status": "degraded",
                     "latency_ms": auth_latency,
-                    "error": "JWT secret key length is below recommended entropy",
+                    "error": "JWT signing key length is below recommended entropy",
                     "description": "Weak authentication configuration",
                     "last_checked": now_utc,
                 }

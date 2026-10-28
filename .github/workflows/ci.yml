@@ -56,6 +56,7 @@ jobs:
         env:
           TESTING: "true"
           DATABASE_URL: "sqlite:///./lakshyaai.db"
+          SECRET_KEY: "ci-testing-jwt-secret-key-entropy-32-chars-minimum"
         run: python -c "from app.db import models; from app.db.database import create_tables; create_tables()"
 
       - name: Run Backend Test Suite
@@ -63,4 +64,5 @@ jobs:
         env:
           TESTING: "true"
           DATABASE_URL: "sqlite:///./lakshyaai.db"
+          SECRET_KEY: "ci-testing-jwt-secret-key-entropy-32-chars-minimum"
         run: python -m unittest discover -s tests -p "test_*.py"
