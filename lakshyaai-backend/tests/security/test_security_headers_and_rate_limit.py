@@ -30,6 +30,25 @@ class TestSecurityHeadersAndRateLimiting(unittest.TestCase):
         self.assertTrue(limited)
         self.assertGreater(retry_after, 0)
 
+    def test_cors_origin_headers_processed_correctly(self):
+        """Verify that CORS middleware reflects allowed origin and rejects untrusted origins."""
+        # Request with allowed origin
+        res_allowed = self.client.get(
+            "/api/health",
+            headers={"Origin": "http://localhost:5173"}
+        )
+        self.assertEqual(res_allowed.status_code, 200)
+        self.assertEqual(res_allowed.headers.get("access-control-allow-origin"), "http://localhost:5173")
+        self.assertEqual(res_allowed.headers.get("access-control-allow-credentials"), "true")
+
+        # Request with disallowed origin
+        res_disallowed = self.client.get(
+            "/api/health",
+            headers={"Origin": "http://malicious-site.com"}
+        )
+        self.assertEqual(res_disallowed.status_code, 200)
+        self.assertIsNone(res_disallowed.headers.get("access-control-allow-origin"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -96,6 +96,28 @@ class TestEnvironmentValidation(unittest.TestCase):
         with patch.dict(os.environ, synthetic_env, clear=True):
             self.assertFalse(validate_environment(raise_on_error=False))
 
+    def test_wildcard_cors_prohibited_in_staging(self):
+        """Wildcard CORS (*) is rejected in staging."""
+        synthetic_env = {
+            "ENVIRONMENT": "staging",
+            "DATABASE_URL": "postgresql://staging_user:strong_pw@staging-db.internal:5432/lakshyaai_staging",
+            "SECRET_KEY": "a" * 32,
+            "CORS_ORIGINS": "*",
+        }
+        with patch.dict(os.environ, synthetic_env, clear=True):
+            self.assertFalse(validate_environment(raise_on_error=False))
+
+    def test_missing_cors_origins_rejected_in_staging(self):
+        """Missing CORS_ORIGINS fails staging validation."""
+        synthetic_env = {
+            "ENVIRONMENT": "staging",
+            "DATABASE_URL": "postgresql://staging_user:strong_pw@staging-db.internal:5432/lakshyaai_staging",
+            "SECRET_KEY": "a" * 32,
+            "CORS_ORIGINS": "",
+        }
+        with patch.dict(os.environ, synthetic_env, clear=True):
+            self.assertFalse(validate_environment(raise_on_error=False))
+
     def test_staging_rejects_production_supabase_database_url(self):
         """Staging environment rejects production Supabase pooler URL."""
         synthetic_env = {

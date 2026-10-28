@@ -58,11 +58,29 @@ from app.services.health_service import HealthService
 from app.db.database import get_db
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+
+# Parse and configure CORS origins
+raw_cors_origins = getattr(settings, "CORS_ORIGINS", []) or []
+cleaned_origins = [o.rstrip("/") for o in raw_cors_origins if o and o.strip()]
+app_env_mode = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV", "development")).lower()
+
+if app_env_mode in ["production", "staging"]:
+    # Never allow wildcard or empty in production or staging
+    cors_allowed_origins = [o for o in cleaned_origins if o != "*"]
+else:
+    cors_allowed_origins = cleaned_origins if cleaned_origins else [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+    ]
+
+is_wildcard = "*" in cors_allowed_origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
+    allow_origins=cors_allowed_origins,
+    allow_credentials=not is_wildcard,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

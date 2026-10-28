@@ -113,8 +113,8 @@ def validate_environment(raise_on_error: bool = False) -> bool:
     cors = os.getenv("CORS_ORIGINS", "").strip()
     if not cors and env in ["production", "staging"]:
         errors.append("CORS_ORIGINS must be explicitly configured in production/staging.")
-    elif cors and "*" in cors and env == "production":
-        errors.append("Wildcard CORS_ORIGINS ('*') is prohibited in production mode.")
+    elif cors and "*" in cors and env in ["production", "staging"]:
+        errors.append("Wildcard CORS_ORIGINS ('*') is prohibited in production and staging environments.")
 
     # 4. Check Rate Limiting
     rate_limit = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
