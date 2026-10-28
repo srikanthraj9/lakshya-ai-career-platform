@@ -41,6 +41,9 @@ const JobsPage = lazy(() => import("./pages/JobsPage"));
 const LiveJobsPage = lazy(() => import("./pages/LiveJobsPage"));
 const CopilotPage = lazy(() => import("./pages/CopilotPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const SkillPassportPage = lazy(() => import("./pages/SkillPassportPage"));
+const SharedPassportPage = lazy(() => import("./pages/SharedPassportPage"));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Admin Control Center Workspaces
@@ -54,6 +57,7 @@ const AdminAIPage = lazy(() => import("./pages/admin/AdminAIPage").then(m => ({ 
 const AdminFeaturesPage = lazy(() => import("./pages/admin/AdminFeaturesPage").then(m => ({ default: m.AdminFeaturesPage })));
 const AdminAnnouncementsPage = lazy(() => import("./pages/admin/AdminAnnouncementsPage").then(m => ({ default: m.AdminAnnouncementsPage })));
 const AdminSystemPage = lazy(() => import("./pages/admin/AdminSystemPage").then(m => ({ default: m.AdminSystemPage })));
+const AdminAlertsPage = lazy(() => import("./pages/admin/AdminAlertsPage").then(m => ({ default: m.AdminAlertsPage })));
 const AdminAuditPage = lazy(() => import("./pages/admin/AdminAuditPage").then(m => ({ default: m.AdminAuditPage })));
 const AdminDatabasePage = lazy(() => import("./pages/admin/AdminDatabasePage").then(m => ({ default: m.AdminDatabasePage })));
 import { ViewAsBanner } from "./components/admin/ViewAsBanner";
@@ -107,6 +111,7 @@ const App = () => (
                   <Route path="/verify-email" element={<VerifyEmailPage />} />
                   <Route path="/onboarding" element={<OnboardingPage />} />
                   <Route path="/auth/callback" element={<AuthCallbackPage />} />
+                  <Route path="/passport/shared/:token" element={<SharedPassportPage />} />
 
                   {/* Protected with sidebar layout */}
                   <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
@@ -129,6 +134,9 @@ const App = () => (
                     <Route path="/jobs" element={<JobsPage />} />
                     <Route path="/jobs/live" element={<LiveJobsPage />} />
                     <Route path="/copilot" element={<CopilotPage />} />
+                    <Route path="/passport" element={<SkillPassportPage />} />
+                    <Route path="/skills" element={<SkillPassportPage />} />
+                    <Route path="/notifications" element={<NotificationsPage />} />
                     <Route path="/profile" element={<ProfilePage />} />
                   </Route>
 
@@ -145,6 +153,7 @@ const App = () => (
                       <Route path="/admin/features" element={<AdminFeaturesPage />} />
                       <Route path="/admin/announcements" element={<AdminAnnouncementsPage />} />
                       <Route path="/admin/system" element={<AdminSystemPage />} />
+                      <Route path="/admin/alerts" element={<AdminAlertsPage />} />
                       <Route path="/admin/audit" element={<AdminAuditPage />} />
                       <Route path="/admin/database" element={<AdminDatabasePage />} />
                     </Route>

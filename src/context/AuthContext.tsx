@@ -165,6 +165,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (fullName: string, email: string, password: string): Promise<RegisterResponse> => {
     const res = await authService.register({ full_name: fullName, email, password });
     setPendingEmail(email);
+    if (res.access_token) {
+      storeToken(res.access_token);
+      try {
+        const userData = await authService.getMe();
+        setUser(userData);
+        sessionService.setStatus("authenticated");
+      } catch (err) {
+        console.warn("[Auth] Could not load user immediately after registration:", err);
+      }
+    }
     console.info("[Auth] Registered user pending verification", res);
     return res;
   };

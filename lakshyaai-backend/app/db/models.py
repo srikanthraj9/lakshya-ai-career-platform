@@ -45,7 +45,8 @@ class User(Base):
     resumes = relationship(
         "Resume",
         back_populates="user",
-        cascade="all, delete"
+        cascade="all, delete",
+        passive_deletes=True,
     )
 
     career_state = relationship(
@@ -298,6 +299,17 @@ class Resume(Base):
     extracted_text = Column(Text)
 
     ats_score = Column(Float)
+    base_quality_score = Column(Float, nullable=True)
+
+    # Resume version lineage
+    parent_resume_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("resumes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    version_number = Column(Integer, default=1, nullable=False)
+    version_label = Column(String, nullable=True)
 
     overall_feedback = Column(Text)
 
@@ -323,29 +335,44 @@ class Resume(Base):
         back_populates="resumes"
     )
 
+    parent = relationship("Resume", remote_side=[id], backref="versions")
+
     skills = relationship(
         "ResumeSkill",
         back_populates="resume",
-        cascade="all, delete"
+        cascade="all, delete-orphan"
     )
 
     embeddings = relationship(
         "ResumeEmbedding",
         back_populates="resume",
-        cascade="all, delete"
+        cascade="all, delete-orphan"
     )
 
     ats_breakdown = relationship(
         "ResumeATSBreakdown",
         back_populates="resume",
-        cascade="all, delete",
+        cascade="all, delete-orphan",
         uselist=False
     )
 
     missing_skills = relationship(
         "ResumeMissingSkill",
         back_populates="resume",
-        cascade="all, delete"
+        cascade="all, delete-orphan"
+    )
+
+    analyses = relationship(
+        "ResumeAnalysis",
+        back_populates="resume",
+        cascade="all, delete-orphan",
+        order_by="desc(ResumeAnalysis.created_at)",
+    )
+
+    skill_evidence = relationship(
+        "ResumeSkillEvidence",
+        back_populates="resume",
+        cascade="all, delete-orphan",
     )
 
 
@@ -370,10 +397,120 @@ class ResumeSkill(Base):
 
     confidence_score = Column(Float)
 
+    is_inferred = Column(Boolean, default=False, nullable=False)
+    extraction_source = Column(String, default="direct", nullable=False)
+
     resume = relationship(
         "Resume",
         back_populates="skills"
     )
+
+
+# =========================
+# RESUME ASSESSMENTS & HISTORICAL ANALYSES
+# =========================
+
+class ResumeAnalysis(Base):
+    __tablename__ = "resume_analyses"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    resume_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("resumes.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+
+    scoring_mode = Column(String(50), nullable=False, default="base_quality", index=True)
+    target_role_id = Column(String(100), nullable=True, index=True)
+    target_role_title = Column(String(200), nullable=True)
+    target_job_description = Column(Text, nullable=True)
+
+    overall_score = Column(Float, nullable=False)
+    match_verdict = Column(String(50), nullable=True)
+    algorithm_version = Column(String(50), nullable=False, default="v2.0-ats-intelligence")
+    model_metadata = Column(JSON, nullable=True)
+    execution_duration_ms = Column(Integer, nullable=True)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        index=True,
+        nullable=False,
+    )
+
+    resume = relationship("Resume", back_populates="analyses")
+    user = relationship("User")
+    dimensions = relationship(
+        "ResumeAnalysisDimension",
+        back_populates="analysis",
+        cascade="all, delete-orphan",
+    )
+
+
+class ResumeAnalysisDimension(Base):
+    __tablename__ = "resume_analysis_dimensions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    analysis_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("resume_analyses.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+
+    dimension_key = Column(String(50), nullable=False, index=True)
+    raw_score = Column(Float, nullable=False)
+    weighted_score = Column(Float, nullable=False)
+    weight_factor = Column(Float, nullable=False)
+    evaluation_status = Column(String(50), nullable=False, default="evaluated")
+    diagnostic_notes = Column(Text, nullable=True)
+
+    analysis = relationship("ResumeAnalysis", back_populates="dimensions")
+
+
+# =========================
+# RESUME SKILL EVIDENCE
+# =========================
+
+class ResumeSkillEvidence(Base):
+    __tablename__ = "resume_skill_evidence"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    resume_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("resumes.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+
+    skill_name = Column(String(100), nullable=False, index=True)
+    excerpt_text = Column(Text, nullable=False)
+    section_name = Column(String(50), nullable=False, default="general")
+    start_char_offset = Column(Integer, nullable=True)
+    end_char_offset = Column(Integer, nullable=True)
+    extraction_source = Column(String(50), nullable=False, default="direct")
+    confidence = Column(Float, nullable=False, default=1.0)
+    is_inferred = Column(Boolean, nullable=False, default=False)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    resume = relationship("Resume", back_populates="skill_evidence")
+
 
 
 # =========================
@@ -1252,6 +1389,30 @@ class UserFeedback(Base):
     status = Column(String(32), default="new", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     resolved_at = Column(DateTime(timezone=True), nullable=True)
+
+    user = relationship("User", foreign_keys=[user_id])
+
+
+# =========================
+# AI REQUEST TELEMETRY
+# =========================
+
+class AIRequestTelemetry(Base):
+    __tablename__ = "ai_request_telemetry"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    request_id = Column(String(100), index=True, nullable=False)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True, nullable=False)
+    feature_type = Column(String(50), index=True, nullable=False)  # 'copilot', 'resume_rewrite', 'mock_interview', 'career_recommendation'
+    provider = Column(String(50), nullable=False)  # 'groq', 'openai', 'openrouter', 'gemini'
+    model_name = Column(String(100), nullable=False)
+    duration_ms = Column(Float, nullable=False)  # Monotonic clock (time.perf_counter) measurement
+    status = Column(String(20), index=True, nullable=False)  # 'success', 'failure'
+    error_category = Column(String(100), nullable=True)  # sanitized category
+    prompt_tokens = Column(Integer, nullable=True)
+    completion_tokens = Column(Integer, nullable=True)
+    total_tokens = Column(Integer, nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     user = relationship("User", foreign_keys=[user_id])
 

@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { getApiErrorMessage } from "@/services/api";
+import { api, getApiErrorMessage, resolveApiBaseUrl } from "@/services/api";
 
 const FEATURE_HIGHLIGHTS = [
   {
@@ -62,6 +62,7 @@ export default function RegisterPage() {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -268,32 +269,56 @@ export default function RegisterPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="relative w-full border-border/70 bg-secondary/30 text-sm font-medium transition-colors hover:bg-secondary/60"
-                onClick={() => {
-                  const backendBase = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:10000/api";
+                disabled={googleLoading || loading}
+                className="relative w-full border-border/70 bg-secondary/30 text-sm font-medium transition-colors hover:bg-secondary/60 disabled:opacity-70"
+                onClick={async () => {
+                  setGoogleLoading(true);
+                  setErrorMessage(null);
+                  try {
+                    const res = await api.get<{ url: string }>("/auth/google/url");
+                    if (res.data?.url) {
+                      window.location.href = res.data.url;
+                      return;
+                    }
+                  } catch (err: unknown) {
+                    console.warn("[Google Auth] /auth/google/url probe error:", err);
+                    const msg = getApiErrorMessage(err);
+                    if (msg.toLowerCase().includes("network error") || msg.toLowerCase().includes("failed to fetch")) {
+                      const errorText = "FastAPI backend server is unreachable at http://127.0.0.1:10000. Please start the backend service.";
+                      setErrorMessage(errorText);
+                      toast.error(errorText);
+                      setGoogleLoading(false);
+                      return;
+                    }
+                  }
+                  const backendBase = resolveApiBaseUrl();
                   window.location.href = `${backendBase.replace(/\/+$/, "")}/auth/google/login`;
                 }}
                 aria-label="Continue with Google"
               >
-                <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    fill="#EA4335"
-                    d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z"
-                  />
-                  <path
-                    fill="#4285F4"
-                    d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.6 14.8c-.3-.8-.4-1.8-.4-2.8s.2-2 .4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.3-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z"
-                  />
-                </svg>
-                Continue with Google
+                {googleLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" />
+                ) : (
+                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      fill="#EA4335"
+                      d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z"
+                    />
+                    <path
+                      fill="#4285F4"
+                      d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.6 14.8c-.3-.8-.4-1.8-.4-2.8s.2-2 .4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.3-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z"
+                    />
+                  </svg>
+                )}
+                {googleLoading ? "Connecting to Google..." : "Continue with Google"}
               </Button>
 
               <div className="relative flex items-center justify-center">

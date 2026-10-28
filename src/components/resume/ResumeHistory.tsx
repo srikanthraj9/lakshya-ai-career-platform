@@ -79,17 +79,32 @@ export function ResumeHistory({
                 </div>
 
                 <div className="space-y-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h4 className="text-sm font-semibold text-foreground truncate">{resume.file_name}</h4>
                     {isActive && (
                       <StatusBadge variant="ai" className="text-[10px] py-0 px-1.5">
                         Active Workspace
                       </StatusBadge>
                     )}
+                    {resume.parent_resume_id && (
+                      <StatusBadge variant="secondary" className="text-[10px] py-0 px-1.5 border border-primary/20 text-primary">
+                        Rewrite Version
+                      </StatusBadge>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>Version {versionNumber}.0</span>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      {resume.version_label || (resume.version_number ? `v${resume.version_number}.0` : `Version ${versionNumber}.0`)}
+                    </span>
                     <span>•</span>
+                    {(resume.base_quality_score ?? resume.ats_score) !== null && (resume.base_quality_score ?? resume.ats_score) !== undefined && (
+                      <>
+                        <span className="text-emerald-400 font-semibold">
+                          {resume.base_quality_score ?? resume.ats_score}% ATS Quality
+                        </span>
+                        <span>•</span>
+                      </>
+                    )}
                     <span>Uploaded {resume.created_at ? formatChartDate(resume.created_at) : "Recently"}</span>
                   </div>
                 </div>

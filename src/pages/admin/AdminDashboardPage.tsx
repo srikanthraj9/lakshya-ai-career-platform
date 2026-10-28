@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -13,6 +13,14 @@ import {
   ShieldCheck,
   Flag,
   Megaphone,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  Ban,
+  Clock,
+  Radio,
+  Server,
+  AlertTriangle,
 } from "lucide-react";
 import { adminService } from "@/services/adminService";
 import { queryKeys } from "@/lib/queryKeys";
@@ -20,19 +28,59 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 export function AdminDashboardPage() {
-  const { data: stats, isLoading } = useQuery({
+  const [timeRange, setTimeRange] = useState<"today" | "7d" | "30d" | "all">("all");
+
+  const {
+    data: stats,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+    dataUpdatedAt,
+  } = useQuery({
     queryKey: queryKeys.admin.dashboard,
     queryFn: () => adminService.getDashboardStats(),
   });
 
+  const {
+    data: alertSummary,
+    refetch: refetchAlerts,
+    isFetching: isFetchingAlerts,
+  } = useQuery({
+    queryKey: queryKeys.admin.alertsSummary,
+    queryFn: () => adminService.getOperationalAlertsSummary(),
+    refetchInterval: 15000,
+  });
+
+  const handleRefreshAll = () => {
+    refetch();
+    refetchAlerts();
+  };
+
   const cards = [
     {
       title: "Total Candidates",
-      value: stats?.total_users ?? "--",
+      value: stats?.total_candidates ?? stats?.total_users ?? "--",
       icon: Users,
-      trend: `+${stats?.new_users_today || 0} today`,
+      trend: stats?.total_candidates !== undefined ? `${stats.total_users} total accounts (+${stats?.new_users_today || 0} today)` : `+${stats?.new_users_today || 0} today`,
       color: "text-blue-500 bg-blue-500/10",
+      href: "/admin/users?role=user",
+    },
+    {
+      title: "Verified Accounts",
+      value: stats?.verified_users ?? "--",
+      icon: CheckCircle2,
+      trend: "Email Authenticated",
+      color: "text-emerald-500 bg-emerald-500/10",
       href: "/admin/users",
+    },
+    {
+      title: "Suspended Accounts",
+      value: stats?.suspended_users ?? "--",
+      icon: Ban,
+      trend: stats?.suspended_users ? `${stats.suspended_users} restricted` : "0 restricted",
+      color: "text-amber-500 bg-amber-500/10",
+      href: "/admin/users?status=suspended",
     },
     {
       title: "Active Today",
@@ -77,36 +125,206 @@ export function AdminDashboardPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
-            Admin Control Center
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Platform governance, multi-tenant candidate monitoring, and real-time system operations.
-          </p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
+              Admin Control Center
+            </h1>
+            <Badge variant="outline" className="gap-1.5 border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold py-0.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              Live Telemetry
+            </Badge>
+          </div>
+          <div className="flex items-center gap-3 mt-1 flex-wrap">
+            <p className="text-sm text-muted-foreground">
+              Platform governance, multi-tenant candidate monitoring, and real-time operations.
+            </p>
+            {dataUpdatedAt ? (
+              <span className="text-[11px] text-muted-foreground/80 border-l border-border/60 pl-3 hidden md:inline">
+                Updated: {new Date(dataUpdatedAt).toLocaleTimeString()}
+              </span>
+            ) : null}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Time Range Filter Selector */}
+          <div className="flex items-center rounded-xl border border-border/60 bg-card/60 p-1 text-xs">
+            {(["today", "7d", "30d", "all"] as const).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setTimeRange(r)}
+                className={`rounded-lg px-2.5 py-1 font-medium transition-all ${
+                  timeRange === r
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {r === "today" ? "Today" : r === "7d" ? "7D" : r === "30d" ? "30D" : "All Time"}
+              </button>
+            ))}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefreshAll}
+            disabled={isFetching || isFetchingAlerts}
+            className="gap-2 rounded-xl h-9 text-xs"
+            title="Refresh dashboard metrics and operational alerts"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching || isFetchingAlerts ? "animate-spin text-primary" : ""}`} />
+            <span>{isFetching || isFetchingAlerts ? "Refreshing..." : "Refresh"}</span>
+          </Button>
+
+          <Link to="/admin/alerts">
+            <Button variant="outline" size="sm" className="gap-2 rounded-xl h-9 text-xs border-primary/30">
+              <AlertTriangle className="h-4 w-4 text-primary" />
+              <span>Alerts</span>
+              {(alertSummary?.open_count ?? 0) > 0 && (
+                <Badge variant="destructive" className="h-4 px-1.5 text-[10px] font-bold">
+                  {alertSummary?.open_count}
+                </Badge>
+              )}
+            </Button>
+          </Link>
           <Link to="/admin/features">
             <Button variant="outline" size="sm" className="gap-2 rounded-xl h-9 text-xs">
               <Flag className="h-4 w-4" />
-              <span>Feature Flags</span>
+              <span>Features</span>
             </Button>
           </Link>
           <Link to="/admin/announcements">
             <Button size="sm" className="gap-2 rounded-xl h-9 text-xs shadow-md shadow-primary/20">
               <Megaphone className="h-4 w-4" />
-              <span>Broadcast Notice</span>
+              <span>Broadcast</span>
             </Button>
           </Link>
         </div>
       </div>
 
+      {/* Actionable Alerts & Health Summary Card (Live Telemetry & Alert Center Integrated) */}
+      <div
+        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border backdrop-blur-xl shadow-sm transition-all ${
+          (alertSummary?.critical_count ?? 0) > 0
+            ? "border-red-500/30 bg-red-950/15"
+            : (alertSummary?.warning_count ?? 0) > 0
+            ? "border-amber-500/30 bg-amber-950/15"
+            : "border-border/60 bg-card/50"
+        }`}
+      >
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div
+            className={`flex h-10 w-10 items-center justify-center rounded-xl shrink-0 ${
+              (alertSummary?.critical_count ?? 0) > 0
+                ? "bg-red-500/15 text-red-500"
+                : (alertSummary?.warning_count ?? 0) > 0
+                ? "bg-amber-500/15 text-amber-500"
+                : "bg-emerald-500/10 text-emerald-500"
+            }`}
+          >
+            {(alertSummary?.critical_count ?? 0) > 0 ? (
+              <AlertCircle className="h-5 w-5" />
+            ) : (alertSummary?.warning_count ?? 0) > 0 ? (
+              <AlertTriangle className="h-5 w-5" />
+            ) : (
+              <ShieldCheck className="h-5 w-5" />
+            )}
+          </div>
+
+          <div className="flex flex-col">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-foreground text-sm">
+                {(alertSummary?.critical_count ?? 0) > 0
+                  ? "Critical Operational Incident Detected"
+                  : (alertSummary?.warning_count ?? 0) > 0
+                  ? "Platform Service Degradation"
+                  : "Platform Operational Status"}
+              </span>
+
+              {(alertSummary?.critical_count ?? 0) > 0 ? (
+                <Badge variant="destructive" className="font-bold text-[10px] gap-1 px-2 py-0.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                  {alertSummary?.critical_count} Critical
+                </Badge>
+              ) : (alertSummary?.warning_count ?? 0) > 0 ? (
+                <Badge
+                  variant="outline"
+                  className="border-amber-500/40 text-amber-500 bg-amber-500/10 font-bold text-[10px] px-2 py-0.5"
+                >
+                  {alertSummary?.warning_count} Warning(s)
+                </Badge>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-500">
+                  <CheckCircle2 className="h-3 w-3" />
+                  All Services Healthy
+                </span>
+              )}
+
+              {alertSummary?.last_refreshed_at && (
+                <span className="text-[10px] font-mono text-muted-foreground ml-1">
+                  Checked {new Date(alertSummary.last_refreshed_at).toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+
+            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+              {(alertSummary?.unresolved_alerts && alertSummary.unresolved_alerts.length > 0) ? (
+                <span>
+                  Top Issue: <strong className="text-foreground">{alertSummary.unresolved_alerts[0].title}</strong> — {alertSummary.unresolved_alerts[0].description}
+                </span>
+              ) : (
+                "0 active incidents · Core API online · Database connection nominal · Telemetry within normal limits."
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+          <Link to="/admin/alerts">
+            <Button size="sm" className="h-8 px-3 rounded-xl text-xs gap-1.5 shadow-sm">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <span>Alert Center</span>
+              <ArrowUpRight className="h-3 w-3 opacity-70" />
+            </Button>
+          </Link>
+          <Link to="/admin/system">
+            <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:text-foreground">
+              <Server className="h-3.5 w-3.5 mr-1" />
+              Diagnostics
+            </Button>
+          </Link>
+          <Link to="/admin/audit">
+            <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:text-foreground">
+              <Activity className="h-3.5 w-3.5 mr-1" />
+              Audit Trail
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Error state if query fails */}
+      {error ? (
+        <div className="flex items-center justify-between p-4 rounded-2xl border border-destructive/40 bg-destructive/10 text-destructive text-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            <span>Failed to load platform overview metrics. Check database and backend health.</span>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="text-xs h-8">
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
       {/* Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((c) => {
           const Icon = c.icon;
           return (

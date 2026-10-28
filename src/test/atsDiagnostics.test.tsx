@@ -299,4 +299,35 @@ describe("ATS Diagnostics Component & Resume Studio Tab Tests", () => {
     // Verified skills for Python Backend
     expect(screen.getByText(/Matched Technical Keywords/i)).toBeInTheDocument();
   });
+
+  it("switches cleanly between Base Quality, Job-Specific Match, and Assessment History tabs", async () => {
+    render(
+      <ATSDiagnostics
+        resume={{
+          ...mockResume1,
+          version_number: 2,
+          version_label: "v2.0 Full-Stack Optimized",
+        }}
+      />
+    );
+
+    // Verify version badge renders
+    expect(screen.getByText("v2.0 Full-Stack Optimized")).toBeInTheDocument();
+
+    // Verify Base Quality Diagnostics mode is active by default
+    expect(screen.getByRole("button", { name: /Base Quality Diagnostics/i })).toBeInTheDocument();
+    expect(screen.getByText(/Document Quality Diagnostics/i)).toBeInTheDocument();
+
+    // Switch to Job-Specific ATS Match mode
+    const jobMatchTab = screen.getByRole("button", { name: /Job-Specific ATS Match/i });
+    fireEvent.click(jobMatchTab);
+    expect(screen.getByText(/Target Job Match Assessment/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Run Job Assessment/i })).toBeInTheDocument();
+
+    // Switch to Assessment History tab
+    const historyTab = screen.getByRole("button", { name: /Assessment History/i });
+    fireEvent.click(historyTab);
+    expect(screen.getByText(/Historical ATS Assessment Runs/i)).toBeInTheDocument();
+  });
 });
+

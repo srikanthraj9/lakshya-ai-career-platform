@@ -2,9 +2,11 @@
 import hashlib
 import logging
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
@@ -20,10 +22,11 @@ from app.db.schemas import (
     Token,
     UserCreate,
     VerifyEmailRequest,
+    VerificationStatusResponse,
 )
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.config import settings
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_optional_current_user
 from app.services.email import send_verification_email
 
 
@@ -149,6 +152,9 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     else:
         message = "Account created successfully, but the verification email could not be delivered. Please click Resend on the verification page."
 
+    # Issue access token so client can immediately establish unverified session for cross-device polling
+    access_token = create_access_token({"sub": str(new_user.id)})
+
     return {
         "id": new_user.id,
         "full_name": new_user.full_name,
@@ -157,6 +163,8 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         "message": message,
         "email_sent": bool(delivery_result.success),
         "delivery_status": delivery_result.status,
+        "access_token": access_token,
+        "token_type": "bearer",
     }
 
 
@@ -360,6 +368,98 @@ def resend_verification(payload: ResendVerificationRequest, db: Session = Depend
         "message": "A new verification email has been sent. Please check your inbox.",
         "email_sent": True,
         "delivery_status": "sent",
+    }
+
+
+# ---------------------------------------------------
+# EMAIL VERIFICATION STATUS (Cross-Device Polling)
+# ---------------------------------------------------
+
+_status_check_rate_limit: dict[str, list[float]] = {}
+STATUS_CHECK_WINDOW_SECONDS = 60
+STATUS_CHECK_MAX_REQUESTS = 120  # Max 120 requests/minute per IP (comfortably supports 3s polling)
+
+
+def _check_status_rate_limit(client_ip: str) -> None:
+    now = time.time()
+    timestamps = _status_check_rate_limit.get(client_ip, [])
+    timestamps = [t for t in timestamps if now - t < STATUS_CHECK_WINDOW_SECONDS]
+    if len(timestamps) >= STATUS_CHECK_MAX_REQUESTS:
+        _status_check_rate_limit[client_ip] = timestamps
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many status check requests. Please slow down.",
+        )
+    timestamps.append(now)
+    _status_check_rate_limit[client_ip] = timestamps
+
+
+@router.get("/verification-status", response_model=schemas.VerificationStatusResponse)
+def get_verification_status(
+    request: Request,
+    email: Optional[str] = None,
+    current_user: Optional[models.User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Check the verification status of an account for cross-device synchronization.
+    Supports authenticated JWT checks (Device 1 session) or unauthenticated email checks.
+    To prevent email enumeration, queries for non-existent and unverified accounts return
+    an identical payload with `is_email_verified=False` and no user details.
+    """
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    _check_status_rate_limit(client_ip)
+
+    # 1. Authenticated session check
+    if current_user:
+        profile = (
+            db.query(models.UserCareerProfile)
+            .filter(models.UserCareerProfile.user_id == current_user.id)
+            .first()
+        )
+        onboarding_completed = bool(
+            getattr(current_user, "onboarding_completed", False)
+            or (profile and profile.onboarding_completed)
+        )
+        return {
+            "is_email_verified": bool(current_user.is_email_verified),
+            "email": current_user.email,
+            "onboarding_completed": onboarding_completed,
+        }
+
+    # 2. Email query parameter check (unauthenticated fallback)
+    if not email or not email.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Authentication token or email query parameter is required.",
+        )
+
+    normalized_email = _normalize_email(email)
+    user = _get_user_by_email(db, normalized_email)
+
+    # Anti-enumeration safeguard:
+    # If the user does not exist OR is not verified, return identical unverified response
+    if not user or not getattr(user, "is_email_verified", False):
+        return {
+            "is_email_verified": False,
+            "email": None,
+            "onboarding_completed": None,
+        }
+
+    profile = (
+        db.query(models.UserCareerProfile)
+        .filter(models.UserCareerProfile.user_id == user.id)
+        .first()
+    )
+    onboarding_completed = bool(
+        getattr(user, "onboarding_completed", False)
+        or (profile and profile.onboarding_completed)
+    )
+
+    return {
+        "is_email_verified": True,
+        "email": user.email,
+        "onboarding_completed": onboarding_completed,
     }
 
 

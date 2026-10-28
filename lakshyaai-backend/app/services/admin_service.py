@@ -1,9 +1,11 @@
 import logging
 import os
 import math
-from typing import Optional
+import threading
+from typing import Optional, List
 from uuid import UUID
 from datetime import datetime, timezone
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from app.db import models, schemas
@@ -19,6 +21,35 @@ BOOTSTRAP_ADMIN_EMAILS = [
     ).split(",")
     if email.strip()
 ]
+
+# Process-level concurrency coordinator for last-super-admin critical sections
+_SUPER_ADMIN_MUTATION_LOCK = threading.Lock()
+
+
+def is_bootstrap_admin(email: Optional[str]) -> bool:
+    """Consistently normalize and evaluate whether an email belongs to a bootstrap administrator."""
+    if not email:
+        return False
+    return email.strip().lower() in BOOTSTRAP_ADMIN_EMAILS
+
+
+def get_active_super_admins_locked(db: Session) -> List[models.User]:
+    """
+    Query all active, non-suspended super administrators ordered deterministically by ID.
+    Uses with_for_update() to acquire row-level locks on PostgreSQL/Supabase,
+    which safely degrades to standard rows on SQLite.
+    """
+    return (
+        db.query(models.User)
+        .filter(
+            models.User.role == "super_admin",
+            models.User.is_active == True,
+            models.User.is_suspended == False,
+        )
+        .order_by(models.User.id.asc())
+        .with_for_update()
+        .all()
+    )
 
 
 class AdminService:
@@ -66,7 +97,11 @@ class AdminService:
         search: Optional[str] = None,
         role: Optional[str] = None,
         is_suspended: Optional[bool] = None,
+        sort_by: Optional[str] = "created_at",
+        sort_order: Optional[str] = "desc",
     ) -> schemas.AdminUserListResponse:
+        from app.services.readiness_service import CandidateReadinessService
+
         query = db.query(models.User)
 
         if search:
@@ -86,15 +121,97 @@ class AdminService:
 
         total = query.count()
         offset = (page - 1) * page_size
-        users = query.order_by(models.User.created_at.desc()).offset(offset).limit(page_size).all()
+
+        # Allowlisted deterministic sorting
+        sort_field_map = {
+            "created_at": models.User.created_at,
+            "name": models.User.full_name,
+            "full_name": models.User.full_name,
+            "email": models.User.email,
+            "role": models.User.role,
+            "status": models.User.is_suspended,
+            "is_suspended": models.User.is_suspended,
+            "last_activity_at": models.User.last_activity_at,
+        }
+        col = sort_field_map.get((sort_by or "created_at").lower(), models.User.created_at)
+        if (sort_order or "desc").lower() == "asc":
+            query = query.order_by(col.asc(), models.User.id.asc())
+        else:
+            query = query.order_by(col.desc(), models.User.id.desc())
+
+        users = query.offset(offset).limit(page_size).all()
+
+        total_pages = max(1, math.ceil(total / page_size))
+        if not users:
+            return schemas.AdminUserListResponse(
+                users=[],
+                total=total,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+            )
+
+        user_ids = [u.id for u in users]
+
+        # Batched query 1: Career profiles
+        career_profiles = (
+            db.query(models.UserCareerProfile)
+            .filter(models.UserCareerProfile.user_id.in_(user_ids))
+            .all()
+        )
+        cp_map = {cp.user_id: cp for cp in career_profiles}
+
+        # Batched query 2: Job applications count
+        apps_counts = (
+            db.query(models.JobApplication.user_id, func.count(models.JobApplication.id))
+            .filter(models.JobApplication.user_id.in_(user_ids))
+            .group_by(models.JobApplication.user_id)
+            .all()
+        )
+        apps_count_map = {uid: count for uid, count in apps_counts}
+
+        # Batched query 3: Interview sessions (yields both count and latest score)
+        interview_rows = (
+            db.query(models.InterviewSession.user_id, models.InterviewSession.overall_score, models.InterviewSession.created_at)
+            .filter(models.InterviewSession.user_id.in_(user_ids))
+            .order_by(models.InterviewSession.created_at.desc())
+            .all()
+        )
+        interviews_count_map = {}
+        latest_interview_score_map = {}
+        for uid, ovr_score, _ in interview_rows:
+            interviews_count_map[uid] = interviews_count_map.get(uid, 0) + 1
+            if uid not in latest_interview_score_map:
+                latest_interview_score_map[uid] = ovr_score
+
+        # Batched query 4: Latest resume per user
+        resume_rows = (
+            db.query(models.Resume.user_id, models.Resume.ats_score, models.Resume.created_at)
+            .filter(models.Resume.user_id.in_(user_ids))
+            .order_by(models.Resume.created_at.desc())
+            .all()
+        )
+        latest_resume_map = {}
+        for uid, ats_score, _ in resume_rows:
+            if uid not in latest_resume_map:
+                latest_resume_map[uid] = ats_score
 
         user_items = []
         for u in users:
-            # Check for career profile
-            cp = db.query(models.UserCareerProfile).filter(models.UserCareerProfile.user_id == u.id).first()
-            apps_count = db.query(func.count(models.JobApplication.id)).filter(models.JobApplication.user_id == u.id).scalar() or 0
-            interviews_count = db.query(func.count(models.InterviewSession.id)).filter(models.InterviewSession.user_id == u.id).scalar() or 0
-            latest_resume = db.query(models.Resume).filter(models.Resume.user_id == u.id).order_by(models.Resume.created_at.desc()).first()
+            cp = cp_map.get(u.id)
+            apps_count = apps_count_map.get(u.id, 0)
+            int_count = interviews_count_map.get(u.id, 0)
+            has_resume = u.id in latest_resume_map
+            ats_score = latest_resume_map.get(u.id)
+
+            readiness_score = CandidateReadinessService.calculate_readiness(
+                ats_score=ats_score,
+                latest_interview_score=latest_interview_score_map.get(u.id),
+                interviews_count=int_count,
+                onboarding_completed=cp.onboarding_completed if cp else False,
+                applications_count=apps_count,
+                has_resume=has_resume,
+            )
 
             user_items.append(
                 schemas.AdminUserListItem(
@@ -108,16 +225,15 @@ class AdminService:
                     is_email_verified=u.is_email_verified,
                     onboarding_completed=cp.onboarding_completed if cp else False,
                     target_role=cp.target_role if cp else None,
-                    ats_score=latest_resume.ats_score if latest_resume else None,
-                    readiness_score=85.0 if latest_resume else 50.0,
+                    ats_score=ats_score,
+                    readiness_score=readiness_score,
                     applications_count=apps_count,
-                    interviews_count=interviews_count,
+                    interviews_count=int_count,
                     last_activity_at=u.last_activity_at or u.created_at,
                     created_at=u.created_at,
                 )
             )
 
-        total_pages = max(1, math.ceil(total / page_size))
         return schemas.AdminUserListResponse(
             users=user_items,
             total=total,
@@ -128,6 +244,8 @@ class AdminService:
 
     @staticmethod
     def get_user_detail(db: Session, user_id: UUID) -> Optional[schemas.AdminUserDetailResponse]:
+        from app.services.readiness_service import CandidateReadinessService
+
         user = db.query(models.User).filter(models.User.id == user_id).first()
         if not user:
             return None
@@ -145,7 +263,14 @@ class AdminService:
         recs_count = db.query(func.count(models.CareerRecommendation.id)).filter(models.CareerRecommendation.user_id == user.id).scalar() or 0
 
         ats_score = latest_resume.ats_score if latest_resume else None
-        readiness_score = 88.0 if ats_score and ats_score > 80 else (65.0 if ats_score else 45.0)
+        readiness_score = CandidateReadinessService.calculate_readiness(
+            ats_score=ats_score,
+            latest_interview_score=latest_interview.overall_score if latest_interview else None,
+            interviews_count=interviews_count,
+            onboarding_completed=cp.onboarding_completed if cp else False,
+            applications_count=apps_count,
+            has_resume=resumes_count > 0,
+        )
 
         profile_dict = None
         if cp:
@@ -194,10 +319,15 @@ class AdminService:
         if not user:
             return None
 
+        # Double-check bootstrap admin protection in service layer
+        if is_bootstrap_admin(user.email):
+            raise HTTPException(
+                status_code=400,
+                detail="Protected bootstrap administrator accounts cannot be suspended."
+            )
+
         user.is_suspended = True
         user.suspended_reason = reason
-        db.commit()
-
         AuditService.log_action(
             db=db,
             admin_user_id=admin_user.id,
@@ -206,7 +336,9 @@ class AdminService:
             resource_type="user",
             resource_id=str(user.id),
             metadata={"reason": reason, "target_email": user.email},
+            commit=False,
         )
+        db.commit()
         return user
 
     @staticmethod
@@ -221,8 +353,6 @@ class AdminService:
 
         user.is_suspended = False
         user.suspended_reason = None
-        db.commit()
-
         AuditService.log_action(
             db=db,
             admin_user_id=admin_user.id,
@@ -231,8 +361,122 @@ class AdminService:
             resource_type="user",
             resource_id=str(user.id),
             metadata={"target_email": user.email},
+            commit=False,
         )
+        db.commit()
         return user
+
+    @staticmethod
+    def bulk_update_user_status(
+        db: Session,
+        admin_user: models.User,
+        user_ids: list[UUID],
+        action: str,
+        reason: Optional[str] = None,
+    ) -> schemas.AdminUserBulkStatusResponse:
+        results = []
+        successful_count = 0
+        failed_count = 0
+
+        for uid in user_ids:
+            user = db.query(models.User).filter(models.User.id == uid).first()
+            if not user:
+                results.append(schemas.AdminUserBulkStatusItem(
+                    user_id=str(uid),
+                    email="unknown",
+                    status="not_found",
+                    success=False,
+                    error="User not found",
+                ))
+                failed_count += 1
+                continue
+
+            # Protection guard: Bootstrap administrator accounts are protected
+            if is_bootstrap_admin(user.email):
+                results.append(schemas.AdminUserBulkStatusItem(
+                    user_id=str(uid),
+                    email=user.email,
+                    status=user.role,
+                    success=False,
+                    error="Protected bootstrap administrator account.",
+                ))
+                failed_count += 1
+                continue
+
+            # Protection guard: Super administrator accounts cannot be suspended or bulk-modified
+            if user.role == "super_admin":
+                results.append(schemas.AdminUserBulkStatusItem(
+                    user_id=str(uid),
+                    email=user.email,
+                    status=user.role,
+                    success=False,
+                    error="Super administrator accounts are protected and cannot be modified via bulk operations.",
+                ))
+                failed_count += 1
+                continue
+
+            # Protection guard: Administrators cannot modify their own status via bulk operations
+            if user.id == admin_user.id:
+                results.append(schemas.AdminUserBulkStatusItem(
+                    user_id=str(uid),
+                    email=user.email,
+                    status=user.role,
+                    success=False,
+                    error="Administrators cannot modify their own account status via bulk operations.",
+                ))
+                failed_count += 1
+                continue
+
+            if action == "suspend":
+                user.is_suspended = True
+                user.suspended_reason = reason or "Bulk suspended by administrator"
+                AuditService.log_action(
+                    db=db,
+                    admin_user_id=admin_user.id,
+                    action_type="BULK_SUSPEND_USER",
+                    target_user_id=user.id,
+                    resource_type="user",
+                    resource_id=str(user.id),
+                    metadata={"reason": reason, "target_email": user.email},
+                    commit=False,
+                )
+                db.commit()
+                results.append(schemas.AdminUserBulkStatusItem(
+                    user_id=str(uid),
+                    email=user.email,
+                    status="suspended",
+                    success=True,
+                ))
+                successful_count += 1
+            elif action == "activate":
+                user.is_suspended = False
+                user.suspended_reason = None
+                AuditService.log_action(
+                    db=db,
+                    admin_user_id=admin_user.id,
+                    action_type="BULK_ACTIVATE_USER",
+                    target_user_id=user.id,
+                    resource_type="user",
+                    resource_id=str(user.id),
+                    metadata={"target_email": user.email},
+                    commit=False,
+                )
+                db.commit()
+                results.append(schemas.AdminUserBulkStatusItem(
+                    user_id=str(uid),
+                    email=user.email,
+                    status="active",
+                    success=True,
+                ))
+                successful_count += 1
+
+        return schemas.AdminUserBulkStatusResponse(
+            action=action,
+            total_requested=len(user_ids),
+            successful_count=successful_count,
+            failed_count=failed_count,
+            results=results,
+        )
 
     @staticmethod
     def get_user_resumes(db: Session, user_id: UUID) -> list[schemas.AdminUserResumeItem]:

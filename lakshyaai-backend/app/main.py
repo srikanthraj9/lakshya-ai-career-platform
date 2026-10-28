@@ -19,6 +19,16 @@ if not logger.handlers:
 
 @app.on_event("startup")
 def startup_event():
+    # Pre-flight environment validation enforced for production & staging environments
+    env = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV", "development")).lower()
+    if os.environ.get("TESTING") != "true" and env in ["production", "staging"]:
+        try:
+            from scripts.validate_environment import validate_environment
+            validate_environment(raise_on_error=True)
+        except Exception as env_err:
+            logger.error("FATAL: Environment validation failed during startup: %s", env_err)
+            raise
+
     # In test mode or local SQLite, initialize tables for in-memory / local test suites
     if os.environ.get("TESTING") == "true" or engine.dialect.name == "sqlite":
         try:
@@ -110,16 +120,18 @@ async def app_exception_handler(_: Request, exc: AppException):
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(_: Request, exc: RequestValidationError):
+    from fastapi.encoders import jsonable_encoder
     return JSONResponse(
         status_code=422,
         content={
             "error": {
                 "code": "request_validation_error",
                 "message": "Request validation failed",
-                "details": {"errors": exc.errors()},
+                "details": {"errors": jsonable_encoder(exc.errors())},
             }
         },
     )
+
 
 
 @app.exception_handler(HTTPException)

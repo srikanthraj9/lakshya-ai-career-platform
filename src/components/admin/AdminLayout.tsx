@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { AdminSidebar } from "./AdminSidebar";
 import { AdminHeader } from "./AdminHeader";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export function AdminLayout() {
@@ -18,6 +18,8 @@ export function AdminLayout() {
       {/* Mobile Drawer Sheet */}
       <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
         <SheetContent side="left" className="p-0 w-72 sm:w-80 border-r border-border/50">
+          <SheetTitle className="sr-only">Admin Navigation Drawer</SheetTitle>
+          <SheetDescription className="sr-only">Platform administration modules and navigation links</SheetDescription>
           <AdminSidebar onClose={() => setIsMobileOpen(false)} />
         </SheetContent>
       </Sheet>

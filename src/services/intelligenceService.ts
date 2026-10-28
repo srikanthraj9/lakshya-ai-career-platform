@@ -90,13 +90,17 @@ export interface CareerAutomationRule {
 }
 
 export const intelligenceService = {
-  async getIntelligence(): Promise<CareerIntelligenceData> {
-    const res = await api.get("/intelligence");
+  async getIntelligence(resumeId?: string): Promise<CareerIntelligenceData> {
+    const res = await api.get("/intelligence", {
+      params: resumeId ? { resume_id: resumeId } : undefined,
+    });
     return res.data;
   },
 
-  async refreshIntelligence(): Promise<CareerIntelligenceData> {
-    const res = await api.post("/intelligence/refresh");
+  async refreshIntelligence(resumeId?: string): Promise<CareerIntelligenceData> {
+    const res = await api.post("/intelligence/refresh", null, {
+      params: resumeId ? { resume_id: resumeId } : undefined,
+    });
     return res.data;
   },
 

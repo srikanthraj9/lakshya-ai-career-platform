@@ -14,18 +14,21 @@ router = APIRouter(prefix="/intelligence", tags=["intelligence"])
 
 @router.get("", response_model=schemas.CareerIntelligenceResponse)
 def get_career_intelligence(
+    resume_id: Optional[UUID] = Query(None, description="Active resume ID to assess"),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return CareerIntelligenceService.get_intelligence(db, current_user)
+    return CareerIntelligenceService.get_intelligence(db, current_user, resume_id=resume_id)
 
 
 @router.post("/refresh", response_model=schemas.CareerIntelligenceResponse)
 def refresh_career_intelligence(
+    resume_id: Optional[UUID] = Query(None, description="Active resume ID to assess"),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return CareerIntelligenceService.get_intelligence(db, current_user)
+    return CareerIntelligenceService.get_intelligence(db, current_user, resume_id=resume_id)
+
 
 
 # =========================

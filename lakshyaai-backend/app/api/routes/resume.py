@@ -13,6 +13,9 @@ from app.core.dependencies import get_current_user
 from app.db import models
 from app.db.database import get_db
 from app.db.schemas import (
+    ResumeAssessRequest,
+    ResumeAssessmentListItem,
+    ResumeAssessmentResponse,
     ResumeCreate,
     ResumeDetailResponse,
     ResumeFeedbackResponse,
@@ -21,6 +24,8 @@ from app.db.schemas import (
     ResumeRewriteListItem,
     ResumeRewriteRequest,
     ResumeRewriteResponse,
+    ResumeSaveVersionRequest,
+    ResumeSaveVersionResponse,
     ResumeSelectorItem,
     ResumeSimilarityResponse,
 )
@@ -40,6 +45,8 @@ def _rewrite_response_payload(
     db: Session | None = None,
 ) -> dict[str, str | dict]:
     try:
+        import time
+        start_time = time.perf_counter()
         logger.info("Resume rewrite request received user_id=%s text_length=%s", current_user.id, len(request.text))
 
         result = ResumeService.rewrite_resume(
@@ -47,6 +54,7 @@ def _rewrite_response_payload(
             resume_text=request.text,
             job_description=request.job_description or "",
         )
+        duration_ms = (time.perf_counter() - start_time) * 1000.0
         logger.info("Resume rewrite service completed user_id=%s", current_user.id)
 
         try:
@@ -79,9 +87,23 @@ def _rewrite_response_payload(
                     tex_path=f"/api/resume/rewrite/{document_id}/tex",
                 )
                 db.add(rewrite_record)
+
+                # Record AI Telemetry
+                from app.services.ai_telemetry_service import AITelemetryService
+                from app.core.config import settings
+                provider_name = "groq" if getattr(settings, "groq_api_key", None) else ("openai" if getattr(settings, "openai_api_key", None) else "local_engine")
+                AITelemetryService.record_request(
+                    db,
+                    feature_type="resume_rewrite",
+                    provider=provider_name,
+                    model_name=getattr(settings, "llm_model", "gpt-4o-mini"),
+                    duration_ms=duration_ms,
+                    status="success",
+                    user_id=current_user.id,
+                )
                 db.commit()
             except Exception as e:
-                logger.warning("Could not persist ResumeRewrite metadata: %s", e)
+                logger.warning("Could not persist ResumeRewrite metadata or telemetry: %s", e)
                 db.rollback()
 
         return {
@@ -304,3 +326,81 @@ def delete_resume(
 ):
     ResumeService.delete_resume(db, resume_id, current_user.id)
     return {"message": "Resume deleted successfully"}
+
+
+@router.post("/{resume_id}/assess", response_model=ResumeAssessmentResponse)
+def assess_resume(
+    resume_id: UUID,
+    request: ResumeAssessRequest = ResumeAssessRequest(),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Run an ATS assessment on a resume in either Base Quality mode (no JD)
+    or Job-Specific ATS Match mode (role title / JD provided).
+    Persists new analysis run, dimensions, and evidence.
+    """
+    return ResumeService.assess_resume(
+        db,
+        user_id=current_user.id,
+        resume_id=resume_id,
+        target_role_id=request.target_role_id,
+        target_role_title=request.target_role_title,
+        job_description=request.job_description,
+    )
+
+
+@router.get("/{resume_id}/assessments", response_model=List[ResumeAssessmentListItem])
+def list_resume_assessments(
+    resume_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Retrieve historical assessment runs for an owned resume.
+    """
+    return ResumeService.get_assessments_for_resume(
+        db,
+        user_id=current_user.id,
+        resume_id=resume_id,
+    )
+
+
+@router.get("/{resume_id}/assessments/{assessment_id}", response_model=ResumeAssessmentResponse)
+def get_resume_assessment_detail(
+    resume_id: UUID,
+    assessment_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Retrieve full assessment details, dimensions, and evidence for a specific run.
+    """
+    return ResumeService.get_assessment_detail(
+        db,
+        user_id=current_user.id,
+        resume_id=resume_id,
+        assessment_id=assessment_id,
+    )
+
+
+@rewrite_router.post("/rewrite/{document_id}/save-version", response_model=ResumeSaveVersionResponse)
+def save_rewritten_resume_version(
+    document_id: str,
+    request: ResumeSaveVersionRequest = ResumeSaveVersionRequest(),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Save an AI-rewritten resume as a new version linked through version lineage.
+    Applies fact-checking safeguards against fabricated employers and degrees.
+    """
+    return ResumeService.save_rewrite_version(
+        db,
+        user=current_user,
+        document_id=document_id,
+        version_label=request.version_label,
+        target_role_title=request.target_role_title,
+        job_description=request.job_description,
+    )
+

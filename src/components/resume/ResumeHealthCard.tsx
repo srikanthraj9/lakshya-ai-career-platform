@@ -8,16 +8,23 @@ import type { ResumeScoreBreakdown } from "@/types";
 interface ResumeHealthCardProps {
   overallScore?: number;
   breakdown?: ResumeScoreBreakdown | null;
+  baseQualityScore?: number | null;
+  versionLabel?: string | null;
+  versionNumber?: number | null;
   onViewDiagnostics?: () => void;
 }
 
 export function ResumeHealthCard({
   overallScore = 0,
   breakdown,
+  baseQualityScore,
+  versionLabel,
+  versionNumber,
   onViewDiagnostics,
 }: ResumeHealthCardProps) {
-  const isExcellent = overallScore >= 85;
-  const isCompetitive = overallScore >= 70;
+  const displayScore = overallScore || baseQualityScore || 0;
+  const isExcellent = displayScore >= 85;
+  const isCompetitive = displayScore >= 70;
 
   const scoreLabel = isExcellent ? "Excellent Profile" : isCompetitive ? "Competitive Profile" : "Needs Optimization";
   const scoreBadgeVariant = isExcellent ? "success" : isCompetitive ? "warning" : "destructive";
@@ -54,18 +61,23 @@ export function ResumeHealthCard({
           <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
             Master Resume Health
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-display text-2xl font-bold text-foreground">ATS Score</h3>
             <StatusBadge variant={scoreBadgeVariant} dot>
               {scoreLabel}
             </StatusBadge>
+            {(versionLabel || versionNumber) && (
+              <span className="text-[10px] font-semibold text-primary px-2 py-0.5 rounded-md bg-primary/10 border border-primary/20">
+                {versionLabel || `v${versionNumber}.0`}
+              </span>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="relative flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 shadow-[0_0_25px_-5px_rgba(124,92,252,0.3)]">
             <span className="font-display text-2xl sm:text-3xl font-bold tracking-tight gradient-text">
-              <AnimatedCounter value={overallScore} suffix="%" />
+              <AnimatedCounter value={displayScore} suffix="%" />
             </span>
           </div>
         </div>

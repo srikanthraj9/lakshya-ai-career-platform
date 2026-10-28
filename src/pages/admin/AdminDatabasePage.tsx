@@ -16,6 +16,8 @@ import {
   FileSpreadsheet,
   ChevronLeft,
   ChevronRight,
+  ArrowUpRight,
+  X,
 } from "lucide-react";
 import { adminService, type DatabaseTableDefinition } from "@/services/adminService";
 import { Button } from "@/components/ui/button";
@@ -31,6 +33,7 @@ export function AdminDatabasePage() {
   const [pageSize] = useState<number>(20);
   const [search, setSearch] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [foreignKeyFilter, setForeignKeyFilter] = useState<{ field: string; value: string } | null>(null);
 
   // Edit Modal State
   const [editingRecord, setEditingRecord] = useState<Record<string, any> | null>(null);
@@ -54,12 +57,14 @@ export function AdminDatabasePage() {
     isLoading: recordsLoading,
     refetch: refetchRecords,
   } = useQuery({
-    queryKey: ["admin", "database", "table", selectedTable, page, pageSize, searchTerm],
+    queryKey: ["admin", "database", "table", selectedTable, page, pageSize, searchTerm, foreignKeyFilter],
     queryFn: () =>
       adminService.queryDatabaseTable(selectedTable, {
         page,
         page_size: pageSize,
         search: searchTerm || undefined,
+        filter_field: foreignKeyFilter?.field,
+        filter_value: foreignKeyFilter?.value,
       }),
     enabled: !!selectedTable,
   });
@@ -244,6 +249,7 @@ export function AdminDatabasePage() {
               key={tbl.table_name}
               onClick={() => {
                 setSelectedTable(tbl.table_name);
+                setForeignKeyFilter(null);
                 setPage(1);
                 setSearch("");
                 setSearchTerm("");
@@ -329,6 +335,27 @@ export function AdminDatabasePage() {
           </div>
         </div>
 
+        {foreignKeyFilter && (
+          <div className="flex items-center gap-2 p-2.5 px-3 rounded-xl bg-primary/10 border border-primary/20 text-xs">
+            <span className="text-muted-foreground font-semibold">Foreign Key Filter:</span>
+            <code className="text-primary font-mono text-[11px] bg-primary/15 px-1.5 py-0.5 rounded font-bold">
+              {foreignKeyFilter.field} = {foreignKeyFilter.value}
+            </code>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setForeignKeyFilter(null);
+                setPage(1);
+              }}
+              className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground ml-auto gap-1"
+            >
+              <X className="h-3 w-3" />
+              <span>Clear Filter</span>
+            </Button>
+          </div>
+        )}
+
         {/* Records Table */}
         <div className="relative overflow-x-auto rounded-xl border border-border/50 bg-background/50">
           {recordsLoading ? (
@@ -400,6 +427,20 @@ export function AdminDatabasePage() {
                             <span className="text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded text-[10px] font-sans">
                               ●●● MASKED
                             </span>
+                          ) : col === "user_id" && val && typeof val === "string" ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedTable("users");
+                                setForeignKeyFilter({ field: "id", value: val });
+                                setPage(1);
+                              }}
+                              className="text-primary underline hover:text-primary/80 font-mono text-[10px] inline-flex items-center gap-0.5 text-left"
+                              title="Navigate to related user record in users table"
+                            >
+                              <span>{val.slice(0, 8)}...</span>
+                              <ArrowUpRight className="h-2.5 w-2.5 inline shrink-0" />
+                            </button>
                           ) : val === null || val === undefined ? (
                             <span className="text-muted-foreground/40 italic">null</span>
                           ) : typeof val === "boolean" ? (
@@ -439,6 +480,7 @@ export function AdminDatabasePage() {
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 className="h-7 w-7 p-0"
+                aria-label="Previous Page"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
@@ -448,6 +490,7 @@ export function AdminDatabasePage() {
                 disabled={page >= tableData.total_pages}
                 onClick={() => setPage((p) => p + 1)}
                 className="h-7 w-7 p-0"
+                aria-label="Next Page"
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>

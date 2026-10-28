@@ -5,7 +5,13 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.db import models
 from app.services.admin_table_registry import TABLE_REGISTRY, serialize_record
-from app.services.audit_service import AuditService, compute_field_diff
+from app.services.audit_service import AuditService, compute_field_diff, sanitize_metadata
+from app.services.admin_service import (
+    BOOTSTRAP_ADMIN_EMAILS,
+    is_bootstrap_admin,
+    _SUPER_ADMIN_MUTATION_LOCK,
+    get_active_super_admins_locked,
+)
 
 logger = logging.getLogger("lakshyaai.admin.action")
 
@@ -61,65 +67,136 @@ class AdminActionService:
                 detail=f"Record '{record_id}' not found in table '{table_name}'."
             )
 
-        # 1. Capture BEFORE snapshot
-        before_snapshot = serialize_record(record, table_name)
+        # Safeguards for users table
+        if table_name == "users":
+            is_self = str(record.id) == str(admin_user.id)
+            is_target_super_admin = getattr(record, "role", "") == "super_admin"
+            is_target_bootstrap = is_bootstrap_admin(getattr(record, "email", ""))
 
-        try:
-            # 2. Apply field mutations
-            for field, val in updates.items():
-                setattr(record, field, val)
+            # 1. Bootstrap administrator protection
+            if is_target_bootstrap:
+                if updates.get("is_active") is False:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Protected bootstrap administrator accounts cannot be deactivated."
+                    )
+                if updates.get("is_suspended") is True:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Protected bootstrap administrator accounts cannot be suspended."
+                    )
+                if "role" in updates and updates["role"] != "super_admin":
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Protected bootstrap administrator accounts cannot be demoted."
+                    )
+                if updates.get("is_email_verified") is False:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Protected bootstrap administrator email verification cannot be revoked."
+                    )
 
-            db.flush()
+            # 2. Check self-deactivation or self-suspension
+            if is_self:
+                if updates.get("is_active") is False:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Administrators cannot deactivate their own account."
+                    )
+                if updates.get("is_suspended") is True:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Administrators cannot suspend their own account."
+                    )
+                if "role" in updates and updates["role"] != getattr(admin_user, "role", ""):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Administrators cannot demote their own administrative role."
+                    )
 
-            # 3. Capture AFTER snapshot & compute diff
-            after_snapshot = serialize_record(record, table_name)
-            diff = compute_field_diff(before_snapshot, after_snapshot)
+        def _apply_mutation():
+            # 1. Capture BEFORE snapshot
+            before_snapshot = serialize_record(record, table_name)
 
-            # Determine target user if applicable
-            target_user_id = getattr(record, "user_id", None)
-            if not target_user_id and table_name == "users":
-                target_user_id = record.id
+            try:
+                # 2. Apply field mutations
+                for field, val in updates.items():
+                    setattr(record, field, val)
 
-            # 4. Write synchronous Audit Log in the SAME transaction
-            audit_entry = AuditService.log_action(
-                db=db,
-                admin_user_id=admin_user.id,
-                action_type=f"DATABASE_MUTATION_{table_name.upper()}",
-                target_user_id=target_user_id,
-                resource_type=table_name,
-                resource_id=str(record_id),
-                before_data=before_snapshot,
-                after_data=after_snapshot,
-                diff=diff,
-                reason=reason,
-                severity="warning",
-                confirmation_value=confirmation_value,
-                ip_address=ip_address,
-                user_agent=user_agent,
-                commit=False,  # Keep part of current transaction
-            )
+                db.flush()
 
-            # 5. Commit atomic transaction
-            db.commit()
-            db.refresh(record)
-            db.refresh(audit_entry)
+                # 3. Capture AFTER snapshot & compute diff
+                after_snapshot = serialize_record(record, table_name)
+                diff = compute_field_diff(before_snapshot, after_snapshot)
 
-            return {
-                "table_name": table_name,
-                "record_id": str(record_id),
-                "diff": diff,
-                "reason": reason,
-                "audit_log_id": audit_entry.id,
-                "updated_record": after_snapshot,
-            }
+                # Determine target user if applicable
+                target_user_id = getattr(record, "user_id", None)
+                if not target_user_id and table_name == "users":
+                    target_user_id = record.id
 
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Failed administrative mutation on {table_name}:{record_id}. Rolled back. Error: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Administrative mutation failed and was safely rolled back: {str(e)}"
-            )
+                # 4. Write synchronous Audit Log in the SAME transaction
+                audit_entry = AuditService.log_action(
+                    db=db,
+                    admin_user_id=admin_user.id,
+                    action_type=f"DATABASE_MUTATION_{table_name.upper()}",
+                    target_user_id=target_user_id,
+                    resource_type=table_name,
+                    resource_id=str(record_id),
+                    before_data=before_snapshot,
+                    after_data=after_snapshot,
+                    diff=diff,
+                    reason=reason,
+                    severity="warning",
+                    confirmation_value=confirmation_value,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    commit=False,  # Keep part of current transaction
+                )
+
+                # 5. Commit atomic transaction
+                db.commit()
+                db.refresh(record)
+                db.refresh(audit_entry)
+
+                return {
+                    "table_name": table_name,
+                    "record_id": str(record_id),
+                    "diff": diff,
+                    "reason": reason,
+                    "audit_log_id": audit_entry.id,
+                    "updated_record": after_snapshot,
+                }
+
+            except HTTPException:
+                db.rollback()
+                raise
+            except Exception as e:
+                db.rollback()
+                clean_err = sanitize_metadata(str(e))
+                logger.error(f"Failed administrative mutation on {table_name}:{record_id}. Rolled back. Error: {clean_err}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Administrative mutation failed and was safely rolled back: {clean_err}"
+                )
+
+        # 3. Check last active super admin demotion/deactivation/suspension with full lock hold
+        if table_name == "users" and is_target_super_admin:
+            will_deactivate = updates.get("is_active") is False
+            will_suspend = updates.get("is_suspended") is True
+            will_demote = "role" in updates and updates["role"] != "super_admin"
+
+            if will_deactivate or will_suspend or will_demote:
+                action_desc = "demote" if will_demote else ("deactivate" if will_deactivate else "suspend")
+                with _SUPER_ADMIN_MUTATION_LOCK:
+                    active_super_admins = get_active_super_admins_locked(db)
+                    if len(active_super_admins) <= 1:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Cannot {action_desc} the last active super administrator."
+                        )
+                    return _apply_mutation()
+
+        return _apply_mutation()
 
     @staticmethod
     def delete_record(
@@ -159,6 +236,22 @@ class AdminActionService:
                 detail=f"Record '{record_id}' not found in table '{table_name}'."
             )
 
+        # Safeguards for users table
+        if table_name == "users":
+            # 1. Prevent self-deletion
+            if str(record.id) == str(admin_user.id):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Administrators cannot delete their own account via Database Explorer."
+                )
+
+            # 2. Prevent deleting bootstrap admin
+            if is_bootstrap_admin(getattr(record, "email", "")):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Protected bootstrap administrator accounts cannot be deleted."
+                )
+
         # Enforce typed confirmation
         expected_confirmation = f"DELETE {record_id}"
         if table_name == "users" and hasattr(record, "email"):
@@ -171,41 +264,59 @@ class AdminActionService:
                     detail=f"Invalid confirmation. Please type exactly '{expected_confirmation}' to confirm."
                 )
 
-        before_snapshot = serialize_record(record, table_name)
-        target_user_id = getattr(record, "user_id", None)
-        if not target_user_id and table_name == "users":
-            target_user_id = record.id
+        def _apply_delete() -> Dict[str, Any]:
+            before_snapshot = serialize_record(record, table_name)
+            target_user_id = getattr(record, "user_id", None)
+            if not target_user_id and table_name == "users":
+                target_user_id = record.id
 
-        try:
-            db.delete(record)
+            try:
+                db.delete(record)
 
-            audit_entry = AuditService.log_action(
-                db=db,
-                admin_user_id=admin_user.id,
-                action_type=f"DATABASE_DELETE_{table_name.upper()}",
-                target_user_id=target_user_id,
-                resource_type=table_name,
-                resource_id=str(record_id),
-                before_data=before_snapshot,
-                after_data=None,
-                diff={"status": {"before": "active", "after": "DELETED"}},
-                reason=reason,
-                severity="critical",
-                confirmation_value=confirmation_value,
-                ip_address=ip_address,
-                user_agent=user_agent,
-                commit=False,
-            )
+                audit_entry = AuditService.log_action(
+                    db=db,
+                    admin_user_id=admin_user.id,
+                    action_type=f"DATABASE_DELETE_{table_name.upper()}",
+                    target_user_id=target_user_id,
+                    resource_type=table_name,
+                    resource_id=str(record_id),
+                    before_data=before_snapshot,
+                    after_data=None,
+                    diff={"status": {"before": "active", "after": "DELETED"}},
+                    reason=reason,
+                    severity="critical",
+                    confirmation_value=confirmation_value,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    commit=False,
+                )
 
-            db.commit()
-            return {
-                "message": f"Record '{record_id}' permanently deleted from '{table_name}'.",
-                "audit_log_id": audit_entry.id,
-            }
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Failed administrative delete on {table_name}:{record_id}. Rolled back: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Deletion failed and was safely rolled back: {str(e)}"
-            )
+                db.commit()
+                return {
+                    "message": f"Record '{record_id}' permanently deleted from '{table_name}'.",
+                    "audit_log_id": audit_entry.id,
+                }
+            except HTTPException:
+                db.rollback()
+                raise
+            except Exception as e:
+                db.rollback()
+                clean_err = sanitize_metadata(str(e))
+                logger.error(f"Failed administrative delete on {table_name}:{record_id}. Rolled back: {clean_err}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Deletion failed and was safely rolled back: {clean_err}"
+                )
+
+        # 3. Prevent deleting the last active super admin with full lock hold through commit
+        if table_name == "users" and getattr(record, "role", "") == "super_admin":
+            with _SUPER_ADMIN_MUTATION_LOCK:
+                active_super_admins = get_active_super_admins_locked(db)
+                if len(active_super_admins) <= 1:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Cannot delete the last active super administrator."
+                    )
+                return _apply_delete()
+
+        return _apply_delete()

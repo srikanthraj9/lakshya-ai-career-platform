@@ -1,25 +1,58 @@
 import React, { useState } from "react";
-import { Download, Copy, Check, FileText, Code2, Eye, Sparkles, RefreshCw } from "lucide-react";
+import {
+  Download,
+  Copy,
+  Check,
+  FileText,
+  Code2,
+  Eye,
+  Sparkles,
+  RefreshCw,
+  Save,
+  GitBranch,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle2,
+} from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 import { resumeRewriteService } from "@/services/resumeRewrite";
+import { resumeService } from "@/services/resume";
+import { queryKeys } from "@/lib/queryKeys";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import type { ResumeRewriteResponse } from "@/types";
+import type { ResumeRewriteResponse, ResumeSaveVersionResponse } from "@/types";
 
 interface GeneratedResumePreviewProps {
   result: ResumeRewriteResponse;
   onRegenerate?: () => void;
   isRegenerating?: boolean;
+  parentResumeId?: string;
+  targetRoleTitle?: string;
+  jobDescription?: string;
+  onVersionSaved?: (saved: ResumeSaveVersionResponse) => void;
 }
 
 export function GeneratedResumePreview({
   result,
   onRegenerate,
   isRegenerating = false,
+  parentResumeId,
+  targetRoleTitle,
+  jobDescription,
+  onVersionSaved,
 }: GeneratedResumePreviewProps) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
   const [copied, setCopied] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [isSavingVersion, setIsSavingVersion] = useState(false);
+  const [versionLabel, setVersionLabel] = useState("v2.0 (AI Optimized)");
+  const [savedVersion, setSavedVersion] = useState<ResumeSaveVersionResponse | null>(null);
 
   const handleCopyLatex = () => {
     navigator.clipboard.writeText(result.latex);
@@ -54,10 +87,40 @@ export function GeneratedResumePreview({
       a.remove();
       URL.revokeObjectURL(url);
       toast.success("Downloaded optimized PDF");
-    } catch (err) {
+    } catch {
       toast.error("Failed to download compiled PDF. Please download the LaTeX source.");
     } finally {
       setDownloadingPdf(false);
+    }
+  };
+
+  const handleSaveAsVersion = async () => {
+    if (!result.document_id) {
+      toast.error("Rewrite document ID is missing. Please regenerate.");
+      return;
+    }
+    try {
+      setIsSavingVersion(true);
+      const saved = await resumeService.saveRewriteVersion(result.document_id, {
+        version_label: versionLabel.trim() || undefined,
+        target_role_title: targetRoleTitle?.trim() || undefined,
+        job_description: jobDescription?.trim() || undefined,
+      });
+
+      setSavedVersion(saved);
+      toast.success(`Saved as ${saved.version_label} in Resume Version History!`);
+
+      if (user?.id) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.resumes.all(user.id) });
+      }
+
+      if (onVersionSaved) {
+        onVersionSaved(saved);
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Failed to save rewrite version");
+    } finally {
+      setIsSavingVersion(false);
     }
   };
 
@@ -122,8 +185,72 @@ export function GeneratedResumePreview({
             <Download className="h-3.5 w-3.5" />
             <span>{downloadingPdf ? "Compiling..." : "Download PDF"}</span>
           </Button>
+
+          {!savedVersion ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSaveAsVersion}
+              disabled={isSavingVersion}
+              className="h-8 gap-1.5 text-xs rounded-xl border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+            >
+              <Save className={`h-3.5 w-3.5 ${isSavingVersion ? "animate-spin" : ""}`} />
+              <span>{isSavingVersion ? "Saving..." : "Save as New Version"}</span>
+            </Button>
+          ) : (
+            <StatusBadge variant="success" className="text-xs py-1 px-2.5">
+              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+              <span>{savedVersion.version_label} Saved</span>
+            </StatusBadge>
+          )}
         </div>
       </div>
+
+      {/* Version Saved Lineage & Score Delta Banner */}
+      {savedVersion && (
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <GitBranch className="h-4 w-4 text-primary" />
+              <span className="text-xs font-bold text-foreground">
+                Saved as Version {savedVersion.version_number}.0 ({savedVersion.version_label})
+              </span>
+            </div>
+            {savedVersion.score_delta !== null && savedVersion.score_delta !== undefined && (
+              <div className="flex items-center gap-1.5">
+                <StatusBadge
+                  variant={savedVersion.score_delta >= 0 ? "success" : "warning"}
+                  className="text-xs font-bold"
+                >
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  {savedVersion.score_delta >= 0 ? `+${savedVersion.score_delta}%` : `${savedVersion.score_delta}%`} ATS Score Delta
+                </StatusBadge>
+              </div>
+            )}
+          </div>
+
+          {savedVersion.delta_explanation && (
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {savedVersion.delta_explanation}
+            </p>
+          )}
+
+          {/* Fact-Checking Warnings */}
+          {savedVersion.validation_warnings && savedVersion.validation_warnings.length > 0 && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 space-y-1">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-300">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <span>Fact-Checking Verification Notice</span>
+              </div>
+              <ul className="list-disc list-inside text-[11px] text-amber-200/90 space-y-0.5">
+                {savedVersion.validation_warnings.map((w, idx) => (
+                  <li key={idx}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tabs for PDF & LaTeX Code Preview */}
       <Tabs defaultValue="structured" className="w-full">

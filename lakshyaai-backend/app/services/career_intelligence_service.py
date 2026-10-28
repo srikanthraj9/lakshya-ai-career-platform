@@ -9,17 +9,33 @@ from app.services.recommendation_engine import RecommendationEngine
 
 class CareerIntelligenceService:
     @staticmethod
-    def get_intelligence(db: Session, user: models.User) -> schemas.CareerIntelligenceResponse:
-        # 1. Fetch latest Resume
-        resume = db.query(models.Resume).filter(
-            models.Resume.user_id == user.id
-        ).order_by(models.Resume.created_at.desc()).first()
+    def get_intelligence(
+        db: Session,
+        user: models.User,
+        resume_id: Optional[uuid.UUID] = None,
+    ) -> schemas.CareerIntelligenceResponse:
+        # 1. Fetch Resume: Honor explicitly requested resume_id (with user ownership check) or fallback to latest
+        resume = None
+        if resume_id:
+            resume = db.query(models.Resume).filter(
+                models.Resume.id == resume_id,
+                models.Resume.user_id == user.id
+            ).first()
 
-        ats_score = resume.ats_score if resume and resume.ats_score is not None else 78.0
+        if not resume:
+            resume = db.query(models.Resume).filter(
+                models.Resume.user_id == user.id
+            ).order_by(models.Resume.created_at.desc()).first()
+
+        ats_score = resume.ats_score if resume and resume.ats_score is not None else 0.0
         if resume and resume.skills:
-            resume_skills = [s.skill_name if hasattr(s, "skill_name") else str(s) for s in resume.skills]
+            resume_skills = [
+                s.skill_name if hasattr(s, "skill_name") else str(s)
+                for s in resume.skills
+                if not getattr(s, "is_inferred", False) and getattr(s, "skill_category", "") != "related_skill"
+            ]
         else:
-            resume_skills = ["React", "TypeScript", "Node.js", "Python", "FastAPI", "PostgreSQL", "Tailwind CSS", "Git"]
+            resume_skills = []
 
         # 2. Fetch Active Goal
         active_goal = db.query(models.CareerGoal).filter(
@@ -38,16 +54,15 @@ class CareerIntelligenceService:
         if not isinstance(core_skills, list):
             core_skills = ["React", "Node.js", "TypeScript", "FastAPI", "PostgreSQL", "Docker", "AWS", "Redis"]
 
-        missing_skills = [s for s in core_skills if s not in resume_skills]
-        if not missing_skills:
-            missing_skills = ["Docker", "Redis", "Kubernetes"]
+        resume_skills_lower = {s.lower() for s in resume_skills}
+        missing_skills = [s for s in core_skills if s.lower() not in resume_skills_lower]
 
         # 4. Fetch Roadmap Progress
         roadmap_record = db.query(models.RoadmapProgress).filter(
             models.RoadmapProgress.user_id == user.id
         ).order_by(models.RoadmapProgress.updated_at.desc()).first()
 
-        completed_steps = roadmap_record.completed_steps if roadmap_record else [0, 1]
+        completed_steps = roadmap_record.completed_steps if roadmap_record else []
         total_steps = 5
         roadmap_pct = round((len(completed_steps) / total_steps) * 100, 1)
 
@@ -57,12 +72,28 @@ class CareerIntelligenceService:
             models.InterviewSession.status == "completed",
         ).order_by(models.InterviewSession.created_at.desc()).first()
 
-        interview_score = latest_interview.overall_score if latest_interview and latest_interview.overall_score is not None else 75.0
+        interview_score = latest_interview.overall_score if latest_interview and latest_interview.overall_score is not None else 0.0
 
         # 6. Calculate Weighted Readiness
-        # Resume Health 30%, Role Match 30%, Interview 20%, Roadmap 10%, Opportunity 10%
-        role_match_score = max(50.0, round(((len(core_skills) - len(missing_skills)) / max(1, len(core_skills))) * 100, 1))
-        job_match_score = 94.0
+        if resume_skills and core_skills:
+            matched_count = len(core_skills) - len(missing_skills)
+            role_match_score = round((matched_count / max(1, len(core_skills))) * 100, 1)
+        else:
+            role_match_score = 0.0
+
+        latest_job_assessment = None
+        if resume:
+            latest_job_assessment = (
+                db.query(models.ResumeAnalysis)
+                .filter(
+                    models.ResumeAnalysis.resume_id == resume.id,
+                    models.ResumeAnalysis.user_id == user.id,
+                    models.ResumeAnalysis.scoring_mode == "job_match",
+                )
+                .order_by(models.ResumeAnalysis.created_at.desc())
+                .first()
+            )
+        job_match_score = float(latest_job_assessment.overall_score) if latest_job_assessment else (role_match_score if resume_skills else 0.0)
 
         weights = {"resume": 0.30, "role": 0.30, "interview": 0.20, "roadmap": 0.10, "job": 0.10}
         readiness_score = round(
@@ -79,7 +110,25 @@ class CareerIntelligenceService:
         role_payload = {"missing_skills": missing_skills}
         roadmap_payload = {"completed_steps": completed_steps, "total_steps": total_steps}
         interview_payload = {"latest_score": interview_score}
-        job_payload = [{"title": "Senior Full Stack Engineer", "company": "TechCorp", "match_score": 94}]
+
+        user_apps = (
+            db.query(models.JobApplication)
+            .filter(models.JobApplication.user_id == user.id)
+            .order_by(models.JobApplication.created_at.desc())
+            .limit(5)
+            .all()
+        )
+        if user_apps:
+            job_payload = [
+                {
+                    "title": app.job_title,
+                    "company": app.company_name,
+                    "match_score": int(round(app.match_score_at_application or role_match_score)),
+                }
+                for app in user_apps
+            ]
+        else:
+            job_payload = []
         goal_payload = {"target_role": target_role_title}
 
         raw_recs = RecommendationEngine.evaluate(

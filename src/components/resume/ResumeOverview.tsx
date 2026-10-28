@@ -36,6 +36,9 @@ export function ResumeOverview({
       <div className="lg:col-span-7 space-y-6">
         <ResumeHealthCard
           overallScore={resume.ats_score ?? 0}
+          baseQualityScore={resume.base_quality_score}
+          versionLabel={resume.version_label}
+          versionNumber={resume.version_number}
           breakdown={resume.breakdown}
           onViewDiagnostics={() => onSwitchTab("ats")}
         />

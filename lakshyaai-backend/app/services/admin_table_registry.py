@@ -585,6 +585,27 @@ TABLE_REGISTRY: Dict[str, Dict[str, Any]] = {
             "user": {"table": "users", "foreign_key": "id", "local_key": "user_id"}
         },
     },
+    "ai_request_telemetry": {
+        "model": models.AIRequestTelemetry,
+        "category": "ai",
+        "primary_key": "id",
+        "readable_fields": [
+            "id", "request_id", "feature_type", "provider", "model_name",
+            "duration_ms", "status", "error_category", "prompt_tokens",
+            "completion_tokens", "total_tokens", "user_id", "timestamp"
+        ],
+        "masked_fields": [],
+        "editable_fields": [],
+        "immutable_fields": [
+            "id", "request_id", "feature_type", "provider", "model_name",
+            "duration_ms", "status", "error_category", "prompt_tokens",
+            "completion_tokens", "total_tokens", "user_id", "timestamp"
+        ],
+        "delete_policy": "disallowed",
+        "relationships": {
+            "user": {"table": "users", "foreign_key": "id", "local_key": "user_id"}
+        },
+    },
 }
 
 

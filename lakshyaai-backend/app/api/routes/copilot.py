@@ -16,7 +16,9 @@ from app.db.schemas import (
     CopilotConversationResponse,
     CopilotResponse,
 )
+import time
 from app.services.copilot import CareerCopilotService
+from app.services.ai_telemetry_service import AITelemetryService
 
 logger = logging.getLogger("lakshyaai.api.copilot")
 router = APIRouter(prefix="/copilot", tags=["Copilot"])
@@ -273,7 +275,11 @@ async def copilot_chat(
     except Exception as ctx_err:
         logger.warning("Could not assemble background profile context: %s", ctx_err)
 
-    # Get AI response
+    # Get AI response with telemetry
+    start_time = time.perf_counter()
+    reply = ""
+    ai_status = "success"
+    ai_error = None
     try:
         reply_dict = await CareerCopilotService.async_chat(
             messages=request.messages,
@@ -282,17 +288,41 @@ async def copilot_chat(
         )
         reply = reply_dict.get("reply", "")
     except ValidationException as val_exc:
+        ai_status = "failure"
+        ai_error = val_exc
         logger.warning("Copilot validation error: %s", val_exc)
         raise HTTPException(status_code=400, detail=str(val_exc)) from val_exc
     except ExternalServiceException as ext_exc:
+        ai_status = "failure"
+        ai_error = ext_exc
         logger.error("Copilot external LLM service error: %s", ext_exc)
         raise HTTPException(status_code=502, detail=str(ext_exc)) from ext_exc
     except Exception as exc:
+        ai_status = "failure"
+        ai_error = exc
         logger.exception("Unexpected error during Copilot chat: %s", exc)
         raise HTTPException(
             status_code=500,
             detail="Career Copilot is temporarily unavailable. Please verify API configuration or try again shortly.",
         ) from exc
+    finally:
+        duration_ms = (time.perf_counter() - start_time) * 1000.0
+        try:
+            from app.core.config import settings
+            provider_name = "groq" if getattr(settings, "groq_api_key", None) else "openrouter"
+            AITelemetryService.record_request(
+                db,
+                feature_type="copilot",
+                provider=provider_name,
+                model_name=getattr(settings, "groq_model", "llama-3.3-70b-versatile"),
+                duration_ms=duration_ms,
+                status=ai_status,
+                error=ai_error,
+                user_id=current_user.id,
+            )
+            db.commit()
+        except Exception as tel_err:
+            logger.warning("Could not persist copilot AI telemetry: %s", tel_err)
 
     # Persist assistant reply
     assistant_db_msg = models.CopilotMessage(

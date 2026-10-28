@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/context/AuthContext";
 import type { AdminUserDetailResponse } from "@/types";
 
 interface UserDetailDrawerProps {
@@ -42,9 +43,33 @@ export function UserDetailDrawer({
   onSuspend,
   onActivate,
 }: UserDetailDrawerProps) {
+  const { user: currentAdmin } = useAuth();
   const [isChangingRole, setIsChangingRole] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<string>(user?.role || "user");
+  const [isSavingRole, setIsSavingRole] = useState(false);
+
+  // Sync selectedRole if user changes
+  React.useEffect(() => {
+    if (user?.role) {
+      setSelectedRole(user.role);
+    }
+  }, [user?.role]);
 
   if (!user) return null;
+
+  const isSelf = user.id === currentAdmin?.id;
+
+  const handleSaveRole = async (newRole: string) => {
+    if (!onUpdateRole || newRole === user.role) return;
+    setIsSavingRole(true);
+    try {
+      await onUpdateRole(newRole);
+      setSelectedRole(newRole);
+      setIsChangingRole(false);
+    } finally {
+      setIsSavingRole(false);
+    }
+  };
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -69,7 +94,9 @@ export function UserDetailDrawer({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5 text-center">
             <span className="text-[10px] text-muted-foreground uppercase font-semibold">Readiness</span>
-            <p className="text-base font-bold text-primary">{Math.round(user.readiness_score)}%</p>
+            <p className="text-base font-bold text-primary">
+              {user.readiness_score != null ? `${Math.round(user.readiness_score)}%` : "--"}
+            </p>
           </div>
           <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5 text-center">
             <span className="text-[10px] text-muted-foreground uppercase font-semibold">Resumes</span>
@@ -101,9 +128,29 @@ export function UserDetailDrawer({
           <div className="flex flex-col gap-2 text-xs">
             <div className="flex items-center justify-between py-1 border-b border-border/30">
               <span className="text-muted-foreground">System Role</span>
-              <Badge variant="outline" className="font-bold uppercase text-[10px]">
-                {user.role}
-              </Badge>
+              {isSelf ? (
+                <Badge variant="outline" className="font-bold uppercase text-[10px] border-purple-500/30 text-purple-400 bg-purple-500/10">
+                  {user.role} (Current User)
+                </Badge>
+              ) : onUpdateRole ? (
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={selectedRole}
+                    onChange={(e) => handleSaveRole(e.target.value)}
+                    disabled={isSavingRole}
+                    className="h-7 text-[11px] font-semibold bg-muted/60 rounded-lg px-2 border border-border/50 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="user">User / Candidate</option>
+                    <option value="admin">Support Admin</option>
+                    <option value="super_admin">Super Admin</option>
+                  </select>
+                  {isSavingRole && <span className="text-[10px] text-muted-foreground animate-pulse">Saving...</span>}
+                </div>
+              ) : (
+                <Badge variant="outline" className="font-bold uppercase text-[10px]">
+                  {user.role}
+                </Badge>
+              )}
             </div>
             <div className="flex items-center justify-between py-1 border-b border-border/30">
               <span className="text-muted-foreground">Status</span>
@@ -181,6 +228,15 @@ export function UserDetailDrawer({
             >
               <CheckCircle2 className="h-4 w-4" />
               Reactivate Account
+            </Button>
+          ) : isSelf ? (
+            <Button
+              variant="outline"
+              disabled
+              className="w-full gap-2 border-border/50 text-muted-foreground opacity-50 cursor-not-allowed"
+            >
+              <XCircle className="h-4 w-4" />
+              Self-Suspension Prohibited
             </Button>
           ) : (
             <Button

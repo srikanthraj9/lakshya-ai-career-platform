@@ -5,9 +5,13 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 # Ensure environment variables are loaded
-ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
-if ENV_PATH.exists():
-    load_dotenv(ENV_PATH)
+staging_env_path = Path(__file__).resolve().parents[2] / ".env.staging"
+prod_env_path = Path(__file__).resolve().parents[2] / ".env"
+
+if os.getenv("ENVIRONMENT", "").strip().lower() == "staging" and staging_env_path.exists():
+    load_dotenv(staging_env_path, override=True)
+elif prod_env_path.exists():
+    load_dotenv(prod_env_path)
 load_dotenv()
 
 
@@ -18,9 +22,13 @@ class Settings(BaseModel):
     API_V1_PREFIX: str = "/api"
 
     # Database
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql://postgres:postgres@localhost:5432/lakshyaai",
+    DATABASE_URL: str = (
+        os.getenv("STAGING_DATABASE_URL")
+        if os.getenv("ENVIRONMENT", "").strip().lower() == "staging" and os.getenv("STAGING_DATABASE_URL")
+        else os.getenv(
+            "DATABASE_URL",
+            "postgresql://postgres:postgres@localhost:5432/lakshyaai",
+        )
     )
 
     # Security & JWT

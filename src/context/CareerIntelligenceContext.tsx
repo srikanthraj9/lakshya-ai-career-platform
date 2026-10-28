@@ -37,15 +37,15 @@ export function CareerIntelligenceProvider({ children }: { children: React.React
   const { targetRole, activeResume, readiness } = useCareerContext();
   const queryClient = useQueryClient();
 
-  // 1. Fetch live AI Intelligence Overview
+  // 1. Fetch live AI Intelligence Overview (synchronized with selected active resume)
   const {
     data: rawIntelligence,
     isLoading: isIntelLoading,
     isError: isIntelError,
     refetch: refetchIntel,
   } = useQuery({
-    queryKey: queryKeys.intelligence.overview(userId || ""),
-    queryFn: intelligenceService.getIntelligence,
+    queryKey: [...queryKeys.intelligence.overview(userId || ""), activeResume?.id || "none"],
+    queryFn: () => intelligenceService.getIntelligence(activeResume?.id),
     enabled: Boolean(userId),
     staleTime: 60 * 1000,
   });

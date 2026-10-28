@@ -134,10 +134,16 @@ class TestSupabaseRLSAndSecurityArchitecture(unittest.TestCase):
             + rls_migration.CATALOG_TABLES
         )
 
-        # Collect all tables in SQLAlchemy Base metadata
-        orm_tables = set(Base.metadata.tables.keys())
+        # Collect all tables in SQLAlchemy Base metadata for baseline migration c8b9d0e1f2a3
+        subsequent_migration_tables = {
+            "ai_request_telemetry",
+            "resume_analyses",
+            "resume_analysis_dimensions",
+            "resume_skill_evidence",
+        }
+        orm_tables = set(t for t in Base.metadata.tables.keys() if t not in subsequent_migration_tables)
 
-        # All ORM tables must be classified and secured in the migration
+        # All baseline ORM tables must be classified and secured in the migration
         missing_from_migration = orm_tables - migration_tables
         self.assertEqual(
             missing_from_migration,

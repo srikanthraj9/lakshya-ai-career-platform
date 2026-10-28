@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator, field_validator
 
 
 class Token(BaseModel):
@@ -47,6 +47,14 @@ class RegisterResponse(BaseModel):
     message: str = "Account created successfully. Please verify your email to continue."
     email_sent: bool = True
     delivery_status: Optional[str] = "sent"
+    access_token: Optional[str] = None
+    token_type: Optional[str] = "bearer"
+
+
+class VerificationStatusResponse(BaseModel):
+    is_email_verified: bool
+    email: Optional[str] = None
+    onboarding_completed: Optional[bool] = None
 
 
 class VerifyEmailRequest(BaseModel):
@@ -153,6 +161,10 @@ class ResumeListItemResponse(BaseModel):
     file_name: str
     created_at: datetime
     ats_score: Optional[int] = None
+    base_quality_score: Optional[int] = None
+    version_number: int = 1
+    version_label: Optional[str] = None
+    parent_resume_id: Optional[UUID] = None
 
 
 class ResumeResponse(BaseModel):
@@ -162,6 +174,10 @@ class ResumeResponse(BaseModel):
     extracted_text: Optional[str] = None
     parsed_text: Optional[str] = None
     ats_score: Optional[int] = None
+    base_quality_score: Optional[int] = None
+    version_number: int = 1
+    version_label: Optional[str] = None
+    parent_resume_id: Optional[UUID] = None
     created_at: datetime
     skills: list[ResumeSkillResponse] = Field(default_factory=list)
     ats_breakdown: Optional[ResumeATSBreakdownResponse] = None
@@ -183,9 +199,14 @@ class ResumeDetailResponse(BaseModel):
     extracted_text: Optional[str] = None
     parsed_text: Optional[str] = None
     ats_score: Optional[int] = None
+    base_quality_score: Optional[int] = None
+    version_number: int = 1
+    version_label: Optional[str] = None
+    parent_resume_id: Optional[UUID] = None
     skills: list[str] = Field(default_factory=list)
     breakdown: ResumeATSBreakdownResponse = Field(default_factory=ResumeATSBreakdownResponse)
     feedback: ResumeDetailFeedbackResponse = Field(default_factory=ResumeDetailFeedbackResponse)
+
 
 
 class ResumeSimilarityMatch(BaseModel):
@@ -206,6 +227,78 @@ class ResumeFeedbackResponse(BaseModel):
     weak_bullet_points: list[str] = Field(default_factory=list)
     formatting_issues: list[str] = Field(default_factory=list)
     llm_feedback: list[str] = Field(default_factory=list)
+
+
+class ResumeAssessRequest(BaseModel):
+    target_role_id: Optional[str] = None
+    target_role_title: Optional[str] = None
+    job_description: Optional[str] = None
+
+
+class ResumeAssessmentDimensionResponse(BaseModel):
+    dimension_key: str
+    raw_score: float
+    weighted_score: float
+    weight_factor: float
+    evaluation_status: str
+    diagnostic_notes: Optional[str] = None
+
+
+class ResumeSkillEvidenceResponse(BaseModel):
+    skill_name: str
+    excerpt_text: str
+    section_name: str
+    confidence: float
+    is_inferred: bool
+
+
+class ResumeAssessmentResponse(BaseModel):
+    id: UUID
+    resume_id: UUID
+    scoring_mode: str
+    overall_score: int
+    match_verdict: str
+    target_role_id: Optional[str] = None
+    target_role_title: Optional[str] = None
+    algorithm_version: str
+    dimensions: list[ResumeAssessmentDimensionResponse] = Field(default_factory=list)
+    matched_skills: list[str] = Field(default_factory=list)
+    missing_skills: list[ResumeMissingSkillResponse] = Field(default_factory=list)
+    skill_evidence: list[ResumeSkillEvidenceResponse] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+    created_at: datetime
+
+
+class ResumeAssessmentListItem(BaseModel):
+    id: UUID
+    resume_id: UUID
+    scoring_mode: str
+    overall_score: int
+    match_verdict: Optional[str] = None
+    target_role_title: Optional[str] = None
+    algorithm_version: str
+    created_at: datetime
+
+
+class ResumeSaveVersionRequest(BaseModel):
+    version_label: Optional[str] = None
+    target_role_title: Optional[str] = None
+    job_description: Optional[str] = None
+
+
+class ResumeSaveVersionResponse(BaseModel):
+    new_resume_id: UUID
+    parent_resume_id: UUID
+    version_number: int
+    version_label: str
+    file_name: str
+    base_quality_score: int
+    job_match_score: Optional[int] = None
+    score_delta: Optional[int] = None
+    delta_explanation: Optional[str] = None
+    validation_warnings: list[str] = Field(default_factory=list)
+    created_at: datetime
+
 
 
 class ResumeRewriteRequest(BaseModel):
@@ -1169,7 +1262,7 @@ class AdminUserDetailResponse(BaseModel):
     applications_count: int = 0
     active_goals_count: int = 0
     recommendations_count: int = 0
-    readiness_score: float = 0.0
+    readiness_score: Optional[float] = None
     created_at: datetime
     last_activity_at: Optional[datetime] = None
 
@@ -1243,8 +1336,32 @@ class AdminUserSuspendRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 
 
+class AdminUserBulkStatusRequest(BaseModel):
+    user_ids: list[UUID] = Field(min_length=1, max_length=100)
+    action: Literal["suspend", "activate"]
+    reason: Optional[str] = Field(default="Bulk administrative status update", max_length=500)
+
+
+class AdminUserBulkStatusItem(BaseModel):
+    user_id: str
+    email: str
+    status: str
+    success: bool
+    error: Optional[str] = None
+
+
+class AdminUserBulkStatusResponse(BaseModel):
+    action: str
+    total_requested: int
+    successful_count: int
+    failed_count: int
+    results: list[AdminUserBulkStatusItem]
+
+
 class AdminDashboardStats(BaseModel):
     total_users: int
+    total_candidates: int = 0
+    verified_users: int = 0
     active_users_today: int
     new_users_today: int
     suspended_users: int
@@ -1278,13 +1395,31 @@ class AIUsageStats(BaseModel):
     successful_requests: int
     failed_requests: int
     success_rate: float
-    average_response_time_ms: float
+    average_response_time_ms: Optional[float] = None
+    p50_latency_ms: Optional[float] = None
+    p95_latency_ms: Optional[float] = None
+    p99_latency_ms: Optional[float] = None
+    telemetry_source: Optional[str] = "ai_request_telemetry"
+    sample_size: int = 0
     breakdown_by_feature: dict = Field(default_factory=dict)
+    breakdown_by_provider: dict = Field(default_factory=dict)
+    recent_errors: list[dict] = Field(default_factory=list)
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+    total_tokens: int = 0
+    token_metered_requests: int = 0
+    unmetered_requests: int = 0
+    estimated_cost_usd: float = 0.0
+    breakdown_by_model: dict = Field(default_factory=dict)
+    pricing_assumptions: dict = Field(default_factory=dict)
+    time_range: Optional[str] = None
 
 
 class SystemHealthResponse(BaseModel):
     status: str  # healthy, degraded, unhealthy
     services: dict = Field(default_factory=dict)
+    service_details: dict = Field(default_factory=dict)
+    open_alerts_count: int = 0
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -1351,8 +1486,10 @@ class PlatformAnnouncementResponse(BaseModel):
 class AdminAuditLogResponse(BaseModel):
     id: UUID
     admin_user_id: Optional[UUID] = None
+    admin_email: Optional[str] = None
     action_type: str
     target_user_id: Optional[UUID] = None
+    target_email: Optional[str] = None
     resource_type: Optional[str] = None
     resource_id: Optional[str] = None
     action_metadata: dict = Field(default_factory=dict)
@@ -1368,7 +1505,32 @@ class AdminAuditLogResponse(BaseModel):
     request_id: Optional[str] = None
     created_at: datetime
 
+    @field_validator("action_metadata", mode="before")
+    @classmethod
+    def sanitize_action_metadata(cls, v: Any) -> dict:
+        if v is None:
+            return {}
+        from app.services.audit_service import sanitize_metadata
+        res = sanitize_metadata(v)
+        return res if isinstance(res, dict) else {}
+
+    @field_validator("before_data", "after_data", "diff", mode="before")
+    @classmethod
+    def sanitize_sensitive_payloads(cls, v: Any) -> Any:
+        if v is None:
+            return None
+        from app.services.audit_service import sanitize_metadata
+        return sanitize_metadata(v)
+
     model_config = ConfigDict(from_attributes=True)
+
+
+class AdminAuditLogListResponse(BaseModel):
+    items: list[AdminAuditLogResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class AdminSimulationStartRequest(BaseModel):
@@ -1546,5 +1708,66 @@ class AccountDeletionResponse(BaseModel):
     success: bool = True
     message: str = "Account and all associated personal data have been permanently deleted."
     deleted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ==============================================================================
+# OPERATIONAL ALERTS & INTELLIGENT ALERT CENTER
+# ==============================================================================
+
+class OperationalAlertItem(BaseModel):
+    id: str
+    alert_type: str  # SERVICE_HEALTH_FAILURE, SERVICE_DEGRADATION, AI_PROVIDER_ERROR_BURST, AUTH_SECURITY_ANOMALY, GOVERNANCE_CRITICAL_EVENT
+    severity: str  # critical, warning, info
+    title: str
+    description: str
+    source_service: str  # api, database, ai_service, authentication, storage, governance
+    status: str = "open"  # open, acknowledged, resolved
+    created_at: datetime
+    updated_at: datetime
+    related_resource_type: Optional[str] = None
+    related_resource_id: Optional[str] = None
+    acknowledged_by_admin_email: Optional[str] = None
+    acknowledged_at: Optional[datetime] = None
+    resolved_by_admin_email: Optional[str] = None
+    resolved_at: Optional[datetime] = None
+    resolution_notes: Optional[str] = None
+    metadata: dict = Field(default_factory=dict)
+
+
+class OperationalAlertListResponse(BaseModel):
+    items: list[OperationalAlertItem]
+    total: int
+    open_count: int
+    acknowledged_count: int
+    resolved_count: int
+    critical_count: int
+    warning_count: int
+    info_count: int
+    last_refreshed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class OperationalAlertSummaryResponse(BaseModel):
+    open_count: int
+    acknowledged_count: int
+    resolved_count: int
+    critical_count: int
+    warning_count: int
+    info_count: int
+    unresolved_alerts: list[OperationalAlertItem]
+    last_refreshed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class OperationalAlertTransitionRequest(BaseModel):
+    status: str = Field(..., pattern="^(acknowledged|resolved)$")
+    resolution_notes: Optional[str] = Field(None, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_resolution_notes(self) -> "OperationalAlertTransitionRequest":
+        if self.status == "resolved":
+            if not self.resolution_notes or not self.resolution_notes.strip():
+                raise ValueError("Resolution notes are required when resolving an alert.")
+        return self
+
+
 
 

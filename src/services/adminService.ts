@@ -15,6 +15,12 @@ import type {
   FeatureFlag,
   PlatformAnnouncement,
   AdminAuditLog,
+  AdminAuditLogListResponse,
+  AdminUserBulkStatusResponse,
+  OperationalAlertItem,
+  OperationalAlertListResponse,
+  OperationalAlertSummaryResponse,
+  OperationalAlertTransitionRequest,
 } from "@/types";
 
 export interface DatabaseTableDefinition {
@@ -27,6 +33,7 @@ export interface DatabaseTableDefinition {
   masked_fields: string[];
   editable_fields: string[];
   immutable_fields: string[];
+  relationships?: Record<string, { table: string; foreign_key?: string; local_key?: string }>;
 }
 
 export interface DatabaseQueryResponse {
@@ -42,6 +49,7 @@ export interface DatabaseQueryResponse {
     masked_columns: string[];
     editable_columns: string[];
     immutable_columns: string[];
+    relationships?: Record<string, { table: string; foreign_key?: string; local_key?: string }>;
   };
 }
 
@@ -57,6 +65,8 @@ export const adminService = {
     search?: string;
     role?: string;
     is_suspended?: boolean;
+    sort_by?: string;
+    sort_order?: "asc" | "desc";
   }): Promise<AdminUserListResponse> {
     const res = await api.get<AdminUserListResponse>("/admin/users", { params });
     return res.data;
@@ -128,13 +138,27 @@ export const adminService = {
     return res.data;
   },
 
+  async bulkUpdateUserStatus(
+    userIds: string[],
+    action: "suspend" | "activate",
+    reason?: string
+  ): Promise<AdminUserBulkStatusResponse> {
+    const res = await api.post<AdminUserBulkStatusResponse>("/admin/users/bulk-status", {
+      user_ids: userIds,
+      action,
+      reason: reason || "Bulk administrative status update",
+    });
+    return res.data;
+  },
+
   async getPlatformAnalytics(): Promise<PlatformAnalyticsStats> {
     const res = await api.get<PlatformAnalyticsStats>("/admin/analytics");
     return res.data;
   },
 
-  async getAIMetrics(): Promise<AIUsageStats> {
-    const res = await api.get<AIUsageStats>("/admin/ai/metrics");
+  async getAIMetrics(timeRange?: string): Promise<AIUsageStats> {
+    const params = timeRange && timeRange !== "all" ? { time_range: timeRange } : undefined;
+    const res = await api.get<AIUsageStats>("/admin/ai/metrics", { params });
     return res.data;
   },
 
@@ -167,6 +191,11 @@ export const adminService = {
     return res.data;
   },
 
+  async deleteFeatureFlag(flagId: string): Promise<{ message: string; flag_id: string }> {
+    const res = await api.delete<{ message: string; flag_id: string }>(`/admin/feature-flags/${flagId}`);
+    return res.data;
+  },
+
   async getAnnouncements(): Promise<PlatformAnnouncement[]> {
     const res = await api.get<PlatformAnnouncement[]>("/admin/announcements");
     return res.data;
@@ -184,6 +213,21 @@ export const adminService = {
     return res.data;
   },
 
+  async updateAnnouncement(
+    announcementId: string,
+    payload: {
+      title?: string;
+      message?: string;
+      type?: string;
+      target_audience?: string;
+      is_active?: boolean;
+      expires_at?: string | null;
+    }
+  ): Promise<PlatformAnnouncement> {
+    const res = await api.patch<PlatformAnnouncement>(`/admin/announcements/${announcementId}`, payload);
+    return res.data;
+  },
+
   async deleteAnnouncement(announcementId: string): Promise<{ message: string }> {
     const res = await api.delete<{ message: string }>(`/admin/announcements/${announcementId}`);
     return res.data;
@@ -194,9 +238,42 @@ export const adminService = {
     page_size?: number;
     action_type?: string;
     target_user_id?: string;
-  }): Promise<AdminAuditLog[]> {
-    const res = await api.get<AdminAuditLog[]>("/admin/audit", { params });
+    resource_type?: string;
+    resource_id?: string;
+    severity?: string;
+    search?: string;
+    start_date?: string;
+    end_date?: string;
+  }): Promise<AdminAuditLogListResponse> {
+    const res = await api.get<AdminAuditLogListResponse | AdminAuditLog[]>("/admin/audit", { params });
+    if (Array.isArray(res.data)) {
+      return {
+        items: res.data,
+        total: res.data.length,
+        page: params?.page || 1,
+        page_size: params?.page_size || res.data.length,
+        total_pages: 1,
+      };
+    }
     return res.data;
+  },
+
+  async exportAuditLogs(params?: {
+    action_type?: string;
+    target_user_id?: string;
+    resource_type?: string;
+    resource_id?: string;
+    severity?: string;
+    search?: string;
+    start_date?: string;
+    end_date?: string;
+    limit?: number;
+  }): Promise<Blob> {
+    const res = await api.get("/admin/audit/export", {
+      params,
+      responseType: "blob",
+    });
+    return res.data as Blob;
   },
 
   // View-As Simulation methods
@@ -237,6 +314,8 @@ export const adminService = {
       search?: string;
       order_by?: string;
       order_direction?: "asc" | "desc";
+      filter_field?: string;
+      filter_value?: string;
     }
   ): Promise<DatabaseQueryResponse> {
     const res = await api.get<DatabaseQueryResponse>(`/admin/database/tables/${tableName}`, { params });
@@ -268,4 +347,29 @@ export const adminService = {
     );
     return res.data;
   },
+
+  // Operational Visibility & Intelligent Alert Center (Phase 2)
+  async getOperationalAlerts(params?: {
+    status?: string;
+    severity?: string;
+    source_service?: string;
+    search?: string;
+  }): Promise<OperationalAlertListResponse> {
+    const res = await api.get<OperationalAlertListResponse>("/admin/alerts", { params });
+    return res.data;
+  },
+
+  async getOperationalAlertsSummary(): Promise<OperationalAlertSummaryResponse> {
+    const res = await api.get<OperationalAlertSummaryResponse>("/admin/alerts/summary");
+    return res.data;
+  },
+
+  async transitionOperationalAlert(
+    alertId: string,
+    payload: OperationalAlertTransitionRequest
+  ): Promise<OperationalAlertItem> {
+    const res = await api.post<OperationalAlertItem>(`/admin/alerts/${alertId}/transition`, payload);
+    return res.data;
+  },
 };
+

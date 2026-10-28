@@ -28,6 +28,13 @@ export function AdminFeaturesPage() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (flagId: string) => adminService.deleteFeatureFlag(flagId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureFlags });
+    },
+  });
+
   return (
     <div className="flex flex-col gap-6">
       <FeatureFlagManager
@@ -38,6 +45,9 @@ export function AdminFeaturesPage() {
         }}
         onCreateFlag={async (payload) => {
           await createMutation.mutateAsync(payload);
+        }}
+        onDeleteFlag={async (flagId) => {
+          await deleteMutation.mutateAsync(flagId);
         }}
       />
     </div>

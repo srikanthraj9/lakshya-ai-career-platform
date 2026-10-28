@@ -207,7 +207,8 @@ export function getApiErrorMessage(error: unknown): string {
     }
 
     const status = error.response?.status;
-    const payloadMessage = error.response?.data?.error?.message;
+    const rawData = error.response?.data as any;
+    const payloadMessage = rawData?.error?.message || (typeof rawData?.detail === "string" ? rawData.detail : undefined);
 
     if (status === 401) {
       return payloadMessage || "Your session expired. Please log in again.";
@@ -234,8 +235,12 @@ export function getApiErrorMessage(error: unknown): string {
     }
   }
 
-  if (error instanceof Error && error.message) {
-    return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof (error as any).message === "string") {
+    return (error as any).message;
+  }
+
+  if (typeof error === "string") {
+    return error;
   }
 
   return "Something went wrong. Please try again.";

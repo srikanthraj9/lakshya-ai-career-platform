@@ -1,5 +1,15 @@
 import api from "./api";
-import type { AuthResponse, RegisterPayload, RegisterResponse, User } from "@/types";
+import type {
+  AuthResponse,
+  RegisterPayload,
+  RegisterResponse,
+  ResendVerificationPayload,
+  ResendVerificationResponse,
+  User,
+  VerifyEmailPayload,
+  VerifyEmailResponse,
+  VerificationStatusResponse,
+} from "@/types";
 
 export const authService = {
   async register(data: RegisterPayload): Promise<RegisterResponse> {
@@ -37,5 +47,13 @@ export const authService = {
     const res = await api.post("/auth/resend-verification", payload);
     return res.data;
   },
+
+  async getVerificationStatus(params?: { email?: string }): Promise<VerificationStatusResponse> {
+    const res = await api.get("/auth/verification-status", {
+      params: params?.email ? { email: params.email } : undefined,
+    });
+    return res.data;
+  },
 };
+
 

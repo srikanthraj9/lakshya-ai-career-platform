@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery, useMutation, useQueryClient, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -25,6 +26,11 @@ import {
   TrendingUp,
   Cpu,
   BarChart3,
+  History,
+  FileCheck2,
+  ChevronRight,
+  ExternalLink,
+  Briefcase,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -32,7 +38,14 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatChartDate } from "@/lib/careerMetrics";
-import type { ResumeDetail } from "@/types";
+import { resumeService } from "@/services/resume";
+import { toast } from "sonner";
+import type {
+  ResumeDetail,
+  ResumeAssessment,
+  ResumeAssessmentListItem,
+  ResumeSkillEvidence,
+} from "@/types";
 
 interface ATSDiagnosticsProps {
   resume: ResumeDetail | null;
@@ -86,7 +99,6 @@ function analyzeStructure(resume: ResumeDetail): StructureSection[] {
   // 1. Contact Information
   const hasEmail = /[\w.\-+]+@[\w.\-]+\.\w+/.test(text);
   const hasPhone = /\+?\d[\d\s().-]{7,}\d/.test(text);
-  const hasLocation = /location|india|remote|bangalore|hyderabad|delhi|mumbai|usa/i.test(text);
   const contactStatus: "pass" | "warn" | "fail" = hasEmail && hasPhone ? "pass" : hasEmail || hasPhone ? "warn" : "fail";
   const contactNote = hasEmail && hasPhone
     ? "Verified professional email, phone number, and location header detected."
@@ -142,7 +154,11 @@ function analyzeStructure(resume: ResumeDetail): StructureSection[] {
   ];
 }
 
-export function ATSDiagnostics({
+const defaultFallbackQueryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
+
+function ATSDiagnosticsInternal({
   resume,
   isLoading = false,
   isError = false,
@@ -151,10 +167,46 @@ export function ATSDiagnostics({
   onViewSkills,
   onOpenUpload,
 }: ATSDiagnosticsProps) {
+  // Mode state: 'base_quality' | 'job_match' | 'history'
+  const [activeMode, setActiveMode] = useState<"base_quality" | "job_match" | "history">("base_quality");
+
   // Target Role & Keyword matching state
   const [selectedRoleId, setSelectedRoleId] = useState<string>("fullstack");
   const [customJobDesc, setCustomJobDesc] = useState<string>("");
+  const [customRoleTitle, setCustomRoleTitle] = useState<string>("");
   const [showFormulaModal, setShowFormulaModal] = useState<boolean>(false);
+
+  // Active Job Match Assessment result
+  const [latestAssessment, setLatestAssessment] = useState<ResumeAssessment | null>(null);
+  const [selectedEvidenceSkill, setSelectedEvidenceSkill] = useState<string | null>(null);
+
+  // Fetch assessment history for this resume
+  const {
+    data: assessmentHistory = [],
+    isLoading: isHistoryLoading,
+    refetch: refetchHistory,
+  } = useQuery<ResumeAssessmentListItem[]>({
+    queryKey: ["resume-assessments", resume?.id],
+    queryFn: () => (resume?.id ? resumeService.getResumeAssessments(resume.id) : Promise.resolve([])),
+    enabled: Boolean(resume?.id),
+    staleTime: 30000,
+  });
+
+  // Job Assessment Mutation
+  const assessMutation = useMutation({
+    mutationFn: (payload: { scoring_mode: "job_match"; target_role_title?: string; target_job_description?: string }) => {
+      if (!resume?.id) throw new Error("No active resume");
+      return resumeService.assessResume(resume.id, payload);
+    },
+    onSuccess: (data) => {
+      setLatestAssessment(data);
+      toast.success(`Job Match assessment completed: ${data.overall_score}% (${data.match_verdict})`);
+      refetchHistory();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Failed to run ATS job assessment");
+    },
+  });
 
   // 1. Loading State
   if (isLoading) {
@@ -253,7 +305,9 @@ export function ATSDiagnostics({
   }
 
   // 5. Calculate Metrics & Analysis Grounded in Active Resume
-  const score = typeof resume.ats_score === "number" ? resume.ats_score : 0;
+  const baseQualityScore = typeof resume.base_quality_score === "number" ? resume.base_quality_score : (typeof resume.ats_score === "number" ? resume.ats_score : 0);
+  const activeScore = activeMode === "job_match" && latestAssessment ? latestAssessment.overall_score : baseQualityScore;
+
   const breakdown = resume.breakdown || {
     keyword_match: 0,
     skill_diversity: 0,
@@ -269,6 +323,7 @@ export function ATSDiagnostics({
 
   // Keyword Matching against selected target role or custom description
   const activeRolePreset = ROLE_PRESETS.find((r) => r.id === selectedRoleId) || ROLE_PRESETS[0];
+  const effectiveRoleTitle = customRoleTitle.trim() || activeRolePreset.label;
 
   const targetKeywords = useMemo(() => {
     if (customJobDesc.trim()) {
@@ -296,18 +351,90 @@ export function ATSDiagnostics({
   const wordCount = rawText.trim().split(/\s+/).length;
   const bulletCount = (rawText.match(/^\s*[-*•]/gm) || []).length;
 
+  const handleRunJobAssessment = () => {
+    assessMutation.mutate({
+      scoring_mode: "job_match",
+      target_role_title: effectiveRoleTitle,
+      target_job_description: customJobDesc || targetKeywords.join(", "),
+    });
+  };
+
+  const handleSelectHistoricalRun = async (assessmentId: string) => {
+    try {
+      if (!resume?.id) return;
+      const detail = await resumeService.getResumeAssessmentDetail(resume.id, assessmentId);
+      setLatestAssessment(detail);
+      setActiveMode("job_match");
+      toast.info(`Loaded assessment for ${detail.target_role_title || "Target Role"} (${detail.overall_score}%)`);
+    } catch {
+      toast.error("Failed to load historical assessment detail");
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* View Mode Switcher Header Tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveMode("base_quality")}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              activeMode === "base_quality"
+                ? "bg-primary text-white shadow-md shadow-primary/20"
+                : "border border-border/80 bg-secondary/30 text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+            }`}
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span>Base Quality Diagnostics</span>
+          </button>
+
+          <button
+            onClick={() => setActiveMode("job_match")}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              activeMode === "job_match"
+                ? "bg-primary text-white shadow-md shadow-primary/20"
+                : "border border-border/80 bg-secondary/30 text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+            }`}
+          >
+            <Target className="h-3.5 w-3.5" />
+            <span>Job-Specific ATS Match</span>
+            {latestAssessment && (
+              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white">
+                {latestAssessment.overall_score}%
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveMode("history")}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              activeMode === "history"
+                ? "bg-primary text-white shadow-md shadow-primary/20"
+                : "border border-border/80 bg-secondary/30 text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+            }`}
+          >
+            <History className="h-3.5 w-3.5" />
+            <span>Assessment History ({assessmentHistory.length})</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="hidden sm:inline">Version:</span>
+          <span className="font-semibold text-foreground px-2 py-0.5 rounded-lg bg-secondary/60 border border-border/60">
+            {resume.version_label || `v${resume.version_number || 1}.0`}
+          </span>
+        </div>
+      </div>
+
       {/* 1. Header Banner & Master Score */}
       <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-6 border border-border/70 relative overflow-hidden">
-        {/* Subtle background glow */}
         <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative z-10">
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                Document Diagnostics
+                {activeMode === "job_match" ? "Target Job Match Assessment" : "Document Quality Diagnostics"}
               </span>
               <span className="text-muted-foreground/40">•</span>
               <span className="text-xs font-semibold text-foreground truncate max-w-[240px] sm:max-w-md">
@@ -320,18 +447,31 @@ export function ATSDiagnostics({
               )}
             </div>
             <h3 className="font-display text-2xl font-bold tracking-tight text-foreground">
-              ATS Compatibility & Parsing Diagnostics
+              {activeMode === "job_match"
+                ? `Job Match: ${latestAssessment?.target_role_title || effectiveRoleTitle}`
+                : "ATS Compatibility & Parsing Diagnostics"}
             </h3>
             <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">
-              Audited using Lakshya AI's rule-based ATS evaluation model. Validates machine readability across enterprise Applicant Tracking Systems (Workday, Greenhouse, Lever, Taleo).
+              {activeMode === "job_match"
+                ? "Evaluated against job requirements using grounded semantic skill matching and evidence tracing. Never uses synthetic keyword inflation."
+                : "Audited using Lakshya AI's rule-based ATS evaluation model. Validates machine readability across enterprise Applicant Tracking Systems (Workday, Greenhouse, Lever, Taleo)."}
             </p>
           </div>
 
           <div className="flex items-center gap-4 shrink-0">
             <div className="flex flex-col items-end">
               <div className="flex items-center gap-2">
-                <StatusBadge variant={score >= 80 ? "success" : score >= 65 ? "warning" : "destructive"} dot>
-                  {score >= 80 ? "ATS Ready" : score >= 65 ? "Competitive Profile" : "Needs Optimization"}
+                <StatusBadge
+                  variant={activeScore >= 80 ? "success" : activeScore >= 65 ? "warning" : "destructive"}
+                  dot
+                >
+                  {activeMode === "job_match" && latestAssessment
+                    ? latestAssessment.match_verdict
+                    : activeScore >= 80
+                    ? "ATS Ready"
+                    : activeScore >= 65
+                    ? "Competitive Profile"
+                    : "Needs Optimization"}
                 </StatusBadge>
               </div>
               <button
@@ -344,12 +484,12 @@ export function ATSDiagnostics({
             </div>
 
             <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 shadow-[0_0_25px_-5px_rgba(124,92,252,0.35)]">
-              <span className="font-display text-3xl font-bold gradient-text">{score}%</span>
+              <span className="font-display text-3xl font-bold gradient-text">{activeScore}%</span>
             </div>
           </div>
         </div>
 
-        {/* Scoring Methodology Breakdown Banner (Expandable explanation) */}
+        {/* Scoring Methodology Breakdown Banner */}
         <AnimatePresence>
           {showFormulaModal && (
             <motion.div
@@ -361,7 +501,7 @@ export function ATSDiagnostics({
               <div className="flex items-center justify-between font-semibold text-foreground">
                 <span className="flex items-center gap-1.5">
                   <BarChart3 className="h-4 w-4 text-primary" />
-                  ATS Composite Calculation Formula
+                  Dual-Mode ATS Scoring Architecture
                 </span>
                 <button
                   onClick={() => setShowFormulaModal(false)}
@@ -370,134 +510,395 @@ export function ATSDiagnostics({
                   ✕ Close
                 </button>
               </div>
-              <p className="font-mono text-[11px] text-primary/90 bg-background/50 p-2 rounded-xl border border-border/50">
-                Composite Score = (Keyword Match × 35%) + (Skill Diversity × 25%) + (Formatting × 20%) + (Action Verbs × 10%) + (Section Coverage × 10%)
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5 pt-1 text-[11px]">
-                <div className="p-2 rounded-lg bg-secondary/30">
-                  <span className="font-bold text-foreground">Keyword Match (35%):</span> Role-critical keyword density & alignment.
+              <div className="grid gap-2 sm:grid-cols-2 text-[11px] pt-1">
+                <div className="p-3 rounded-xl bg-secondary/30 border border-border/50 space-y-1">
+                  <span className="font-bold text-foreground">Mode A — Base Document Quality (100%):</span>
+                  <p className="text-muted-foreground">
+                    Section Coverage (35%) + Formatting & Layout (30%) + Action Verbs & Metrics (20%) + Proven Skill Breadth (15%). Keyword Match is strictly 0.0/N.A. without a target job.
+                  </p>
                 </div>
-                <div className="p-2 rounded-lg bg-secondary/30">
-                  <span className="font-bold text-foreground">Skill Diversity (25%):</span> Volume & breadth of technical skills.
-                </div>
-                <div className="p-2 rounded-lg bg-secondary/30">
-                  <span className="font-bold text-foreground">Formatting (20%):</span> Clean layout, font consistency, spacing.
-                </div>
-                <div className="p-2 rounded-lg bg-secondary/30">
-                  <span className="font-bold text-foreground">Action Verbs (10%):</span> High-impact accomplishment verbs in bullets.
-                </div>
-                <div className="p-2 rounded-lg bg-secondary/30">
-                  <span className="font-bold text-foreground">Section Coverage (10%):</span> Presence of core standard sections.
+                <div className="p-3 rounded-xl bg-secondary/30 border border-border/50 space-y-1">
+                  <span className="font-bold text-foreground">Mode B — Job-Specific ATS Match (100%):</span>
+                  <p className="text-muted-foreground">
+                    Required Skills (40%) + Preferred Skills (20%) + Contextual Keywords (20%) + Experience Alignment (10%) + Formatting & Hygiene (10%). Requires job description.
+                  </p>
                 </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Component Breakdown Meters */}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 pt-2 border-t border-border/60">
-          <div className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground font-medium">Keyword Match</span>
-              <span className="font-bold text-foreground">{Math.round(breakdown.keyword_match)}%</span>
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/80">
-              <div className="h-full rounded-full bg-gradient-to-r from-primary to-accent" style={{ width: `${Math.min(breakdown.keyword_match, 100)}%` }} />
-            </div>
-            <span className="text-[10px] text-muted-foreground">Weight: 35%</span>
-          </div>
-
-          <div className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground font-medium">Skill Diversity</span>
-              <span className="font-bold text-foreground">{Math.round(breakdown.skill_diversity)}%</span>
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/80">
-              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400" style={{ width: `${Math.min(breakdown.skill_diversity, 100)}%` }} />
-            </div>
-            <span className="text-[10px] text-muted-foreground">Weight: 25%</span>
-          </div>
-
-          <div className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground font-medium">Formatting & Layout</span>
-              <span className="font-bold text-foreground">{Math.round(breakdown.formatting)}%</span>
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/80">
-              <div className="h-full rounded-full bg-gradient-to-r from-accent to-sky-400" style={{ width: `${Math.min(breakdown.formatting, 100)}%` }} />
-            </div>
-            <span className="text-[10px] text-muted-foreground">Weight: 20%</span>
-          </div>
-
-          <div className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground font-medium">Action Verbs</span>
-              <span className="font-bold text-foreground">{Math.round(breakdown.action_verbs)}%</span>
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/80">
-              <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-primary" style={{ width: `${Math.min(breakdown.action_verbs, 100)}%` }} />
-            </div>
-            <span className="text-[10px] text-muted-foreground">Weight: 10%</span>
-          </div>
-
-          <div className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground font-medium">Section Coverage</span>
-              <span className="font-bold text-foreground">{Math.round(breakdown.section_coverage)}%</span>
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/80">
-              <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-400" style={{ width: `${Math.min(breakdown.section_coverage, 100)}%` }} />
-            </div>
-            <span className="text-[10px] text-muted-foreground">Weight: 10%</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Resume Structure Checklist */}
-      <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-4 border border-border/70">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h4 className="font-display text-base font-bold text-foreground">
-              Resume Structure & Section Completeness
-            </h4>
-            <p className="text-xs text-muted-foreground">
-              Automated scanners require standardized headings to correctly segment contact data, experience, and education.
-            </p>
-          </div>
-          <span className="text-xs font-medium text-muted-foreground">
-            {sectionChecklist.filter((s) => s.status === "pass").length} of {sectionChecklist.length} Sections Verified
-          </span>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 pt-2">
-          {sectionChecklist.map((sec) => (
-            <div
-              key={sec.name}
-              className="rounded-2xl border border-border/70 bg-secondary/30 p-4 space-y-2"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-foreground">{sec.name}</span>
-                {sec.status === "pass" ? (
-                  <StatusBadge variant="success" className="text-[10px] py-0 px-2">
-                    Verified
-                  </StatusBadge>
-                ) : sec.status === "warn" ? (
-                  <StatusBadge variant="warning" className="text-[10px] py-0 px-2">
-                    Needs Polish
-                  </StatusBadge>
-                ) : (
-                  <StatusBadge variant="destructive" className="text-[10px] py-0 px-2">
-                    Missing
-                  </StatusBadge>
-                )}
+        {/* Mode A Component Breakdown Meters */}
+        {activeMode === "base_quality" && (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 pt-2 border-t border-border/60">
+            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground font-medium">Keyword Match</span>
+                <span className="font-bold text-foreground">N/A</span>
               </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">{sec.note}</p>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/80">
+                <div className="h-full rounded-full bg-muted-foreground/30" style={{ width: "0%" }} />
+              </div>
+              <span className="text-[10px] text-amber-400 font-medium">Requires Target Job</span>
             </div>
-          ))}
-        </div>
+
+            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground font-medium">Skill Diversity</span>
+                <span className="font-bold text-foreground">{Math.round(breakdown.skill_diversity)}%</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/80">
+                <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400" style={{ width: `${Math.min(breakdown.skill_diversity, 100)}%` }} />
+              </div>
+              <span className="text-[10px] text-muted-foreground">Weight: 15%</span>
+            </div>
+
+            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground font-medium">Formatting & Layout</span>
+                <span className="font-bold text-foreground">{Math.round(breakdown.formatting)}%</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/80">
+                <div className="h-full rounded-full bg-gradient-to-r from-accent to-sky-400" style={{ width: `${Math.min(breakdown.formatting, 100)}%` }} />
+              </div>
+              <span className="text-[10px] text-muted-foreground">Weight: 30%</span>
+            </div>
+
+            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground font-medium">Action Verbs & Impact</span>
+                <span className="font-bold text-foreground">{Math.round(breakdown.action_verbs)}%</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/80">
+                <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-primary" style={{ width: `${Math.min(breakdown.action_verbs, 100)}%` }} />
+              </div>
+              <span className="text-[10px] text-muted-foreground">Weight: 20%</span>
+            </div>
+
+            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground font-medium">Section Coverage</span>
+                <span className="font-bold text-foreground">{Math.round(breakdown.section_coverage)}%</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/80">
+                <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-400" style={{ width: `${Math.min(breakdown.section_coverage, 100)}%` }} />
+              </div>
+              <span className="text-[10px] text-muted-foreground">Weight: 35%</span>
+            </div>
+          </div>
+        )}
+
+        {/* Mode B Component Breakdown Meters (when assessment loaded) */}
+        {activeMode === "job_match" && latestAssessment && latestAssessment.dimensions && (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 pt-2 border-t border-border/60">
+            {latestAssessment.dimensions.map((dim) => (
+              <div key={dim.dimension_key} className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground font-medium capitalize">
+                    {dim.dimension_key.replace(/_/g, " ")}
+                  </span>
+                  <span className="font-bold text-foreground">{Math.round(dim.raw_score)}%</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/80">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
+                    style={{ width: `${Math.min(dim.raw_score, 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between items-center text-[10px] text-muted-foreground">
+                  <span>Weight: {Math.round(dim.weight_factor * 100)}%</span>
+                  <span className="text-primary font-semibold">+{Math.round(dim.weighted_score)} pts</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* 3. Keyword Intelligence & Target Role Matcher */}
+      {/* Mode A: Standalone Base Quality Content */}
+      {activeMode === "base_quality" && (
+        <>
+          {/* Prompt banner to evaluate job match */}
+          <div className="rounded-2xl border border-primary/30 bg-primary/10 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <Target className="h-4 w-4 text-primary" />
+                <span>Want to see your realistic ATS score for a specific job?</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                ATS scanners compare resumes directly against specific job requirements. Run a job match assessment to see matched skills, missing keywords, and evidence grounding.
+              </p>
+            </div>
+            <Button
+              onClick={() => setActiveMode("job_match")}
+              variant="gradient"
+              size="sm"
+              className="gap-2 text-xs shrink-0 font-semibold"
+            >
+              <span>Run Job-Specific Match</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
+          {/* Resume Structure Checklist */}
+          <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-4 border border-border/70">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h4 className="font-display text-base font-bold text-foreground">
+                  Resume Structure & Section Completeness
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Automated scanners require standardized headings to correctly segment contact data, experience, and education.
+                </p>
+              </div>
+              <span className="text-xs font-medium text-muted-foreground">
+                {sectionChecklist.filter((s) => s.status === "pass").length} of {sectionChecklist.length} Sections Verified
+              </span>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 pt-2">
+              {sectionChecklist.map((sec) => (
+                <div
+                  key={sec.name}
+                  className="rounded-2xl border border-border/70 bg-secondary/30 p-4 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground">{sec.name}</span>
+                    {sec.status === "pass" ? (
+                      <StatusBadge variant="success" className="text-[10px] py-0 px-2">
+                        Verified
+                      </StatusBadge>
+                    ) : sec.status === "warn" ? (
+                      <StatusBadge variant="warning" className="text-[10px] py-0 px-2">
+                        Needs Polish
+                      </StatusBadge>
+                    ) : (
+                      <StatusBadge variant="destructive" className="text-[10px] py-0 px-2">
+                        Missing
+                      </StatusBadge>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">{sec.note}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Mode B: Job-Specific Assessment & Live Role Matcher */}
+      {activeMode === "job_match" && (
+        <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-6 border border-border/70">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/50">
+            <div>
+              <h4 className="font-display text-lg font-bold text-foreground flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-primary" />
+                <span>Job-Specific ATS Assessment Configuration</span>
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Enter target role details to assess alignment against verified skills and evidence in this resume version.
+              </p>
+            </div>
+            <Button
+              onClick={handleRunJobAssessment}
+              disabled={assessMutation.isPending}
+              variant="gradient"
+              className="gap-2 text-xs font-semibold text-white shadow-lg shadow-primary/20"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${assessMutation.isPending ? "animate-spin" : ""}`} />
+              <span>{assessMutation.isPending ? "Evaluating ATS Match..." : "Run Job Assessment"}</span>
+            </Button>
+          </div>
+
+          {/* Role Presets & Inputs */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Select Target Role Preset:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {ROLE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    onClick={() => {
+                      setSelectedRoleId(preset.id);
+                      setCustomRoleTitle(preset.label);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                      selectedRoleId === preset.id && !customJobDesc
+                        ? "bg-primary text-white shadow-sm shadow-primary/30"
+                        : "border border-border/70 bg-secondary/30 text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-muted-foreground">Target Role Title:</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Senior Full-Stack Engineer"
+                  value={customRoleTitle || activeRolePreset.label}
+                  onChange={(e) => setCustomRoleTitle(e.target.value)}
+                  className="w-full h-9 rounded-xl border border-border/80 bg-background/50 px-3 text-xs focus:ring-1 focus:ring-primary text-foreground"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-muted-foreground">Job Description / Keywords:</label>
+                <input
+                  type="text"
+                  placeholder="Paste JD text or key skills (e.g. React, Python, Docker)..."
+                  value={customJobDesc}
+                  onChange={(e) => setCustomJobDesc(e.target.value)}
+                  className="w-full h-9 rounded-xl border border-border/80 bg-background/50 px-3 text-xs focus:ring-1 focus:ring-primary text-foreground"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Grounded Evidence Viewer (if assessment has skill evidence) */}
+          {latestAssessment && latestAssessment.skill_evidence && latestAssessment.skill_evidence.length > 0 && (
+            <div className="rounded-2xl border border-border/80 bg-secondary/20 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h5 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <FileCheck2 className="h-4 w-4 text-emerald-400" />
+                  <span>Resume Skill Evidence Grounding ({latestAssessment.skill_evidence.length} Verified Excerpts)</span>
+                </h5>
+                <span className="text-[10px] text-muted-foreground">Click skill chip to view quote</span>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {latestAssessment.skill_evidence.map((ev) => (
+                  <button
+                    key={`${ev.skill_name}-${ev.section_name}`}
+                    onClick={() => setSelectedEvidenceSkill(selectedEvidenceSkill === ev.skill_name ? null : ev.skill_name)}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                      selectedEvidenceSkill === ev.skill_name
+                        ? "bg-emerald-500 text-white shadow-sm"
+                        : "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                    }`}
+                  >
+                    <Check className="h-3 w-3" />
+                    <span>{ev.skill_name}</span>
+                    <span className="text-[9px] opacity-75">({ev.section_name})</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Selected Excerpt Drawer */}
+              {selectedEvidenceSkill && (
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3 space-y-1.5 text-xs">
+                  {latestAssessment.skill_evidence
+                    .filter((ev) => ev.skill_name === selectedEvidenceSkill)
+                    .map((ev, i) => (
+                      <div key={i} className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-300">
+                          <span>Evidence for "{ev.skill_name}" in [{ev.section_name}]</span>
+                          <span>Confidence: {Math.round(ev.confidence * 100)}%</span>
+                        </div>
+                        <p className="font-mono text-[11px] text-foreground/90 bg-background/50 p-2 rounded-lg border border-border/40 italic">
+                          "{ev.excerpt_text}"
+                        </p>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mode C: Assessment History Panel */}
+      {activeMode === "history" && (
+        <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-5 border border-border/70">
+          <div className="flex items-center justify-between pb-3 border-b border-border/50">
+            <div>
+              <h4 className="font-display text-lg font-bold text-foreground flex items-center gap-2">
+                <History className="h-4 w-4 text-primary" />
+                <span>Historical ATS Assessment Runs</span>
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Audit trail of past evaluations performed on this resume version. Click to view score breakdown.
+              </p>
+            </div>
+            <Button
+              onClick={() => refetchHistory()}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs h-8"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>Refresh Runs</span>
+            </Button>
+          </div>
+
+          {assessmentHistory.length === 0 ? (
+            <div className="text-center py-8 space-y-2">
+              <History className="h-8 w-8 text-muted-foreground/50 mx-auto" />
+              <p className="text-xs text-muted-foreground">No prior job assessment runs recorded for this resume.</p>
+              <Button
+                onClick={() => setActiveMode("job_match")}
+                variant="gradient"
+                size="sm"
+                className="text-xs"
+              >
+                Run First Job Assessment
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {assessmentHistory.map((run) => (
+                <div
+                  key={run.id}
+                  onClick={() => handleSelectHistoricalRun(run.id)}
+                  className="rounded-2xl border border-border/70 bg-secondary/30 p-4 hover:border-primary/40 hover:bg-secondary/50 cursor-pointer transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-foreground">
+                        {run.target_role_title || (run.scoring_mode === "base_quality" ? "Baseline Audit" : "Target Job Match")}
+                      </span>
+                      <StatusBadge
+                        variant={run.scoring_mode === "job_match" ? "primary" : "secondary"}
+                        className="text-[10px] py-0 px-1.5"
+                      >
+                        {run.scoring_mode === "job_match" ? "Job Match" : "Base Quality"}
+                      </StatusBadge>
+                      {run.match_verdict && (
+                        <StatusBadge
+                          variant={run.overall_score >= 80 ? "success" : run.overall_score >= 65 ? "warning" : "destructive"}
+                          className="text-[10px] py-0 px-1.5"
+                        >
+                          {run.match_verdict}
+                        </StatusBadge>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      <span>Evaluated: {formatChartDate(run.created_at)}</span>
+                      <span className="mx-1.5">•</span>
+                      <span>Engine: {run.algorithm_version}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="font-display text-xl font-bold gradient-text">
+                      {Math.round(run.overall_score)}%
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 3. Keyword Intelligence & Target Role Matcher (Always Available for Interactive Exploration) */}
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-7 glass-card rounded-3xl p-6 sm:p-8 space-y-5 border border-border/70">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -600,7 +1001,7 @@ export function ATSDiagnostics({
             </div>
           </div>
 
-          {/* Missing Keywords (Growth Opportunities) */}
+          {/* Missing Keywords */}
           {missingKeywords.length > 0 && (
             <div className="space-y-2 pt-2 border-t border-border/50">
               <div className="flex items-center justify-between">
@@ -653,7 +1054,6 @@ export function ATSDiagnostics({
             </h4>
 
             <div className="space-y-2.5 text-xs">
-              {/* Summary suggestions */}
               {feedback?.summary?.map((item, idx) => (
                 <div key={`sum-${idx}`} className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-secondary/25 p-3">
                   <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
@@ -661,7 +1061,6 @@ export function ATSDiagnostics({
                 </div>
               ))}
 
-              {/* Weak points suggestions */}
               {feedback?.weak_points?.map((weakness, idx) => (
                 <div key={`weak-${idx}`} className="flex items-start gap-2.5 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
                   <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
@@ -669,7 +1068,6 @@ export function ATSDiagnostics({
                 </div>
               ))}
 
-              {/* Formatting suggestions */}
               {feedback?.formatting?.map((fmt, idx) => (
                 <div key={`fmt-${idx}`} className="flex items-start gap-2.5 rounded-xl border border-sky-500/25 bg-sky-500/5 p-3">
                   <Info className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" />
@@ -746,4 +1144,27 @@ export function ATSDiagnostics({
       </div>
     </div>
   );
+}
+
+function ATSDiagnosticsBoundary(props: ATSDiagnosticsProps) {
+  let hasClient = false;
+  try {
+    hasClient = Boolean(useQueryClient());
+  } catch {
+    hasClient = false;
+  }
+
+  if (!hasClient) {
+    return (
+      <QueryClientProvider client={defaultFallbackQueryClient}>
+        <ATSDiagnosticsInternal {...props} />
+      </QueryClientProvider>
+    );
+  }
+
+  return <ATSDiagnosticsInternal {...props} />;
+}
+
+export function ATSDiagnostics(props: ATSDiagnosticsProps) {
+  return <ATSDiagnosticsBoundary {...props} />;
 }

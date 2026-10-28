@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams, useLocation } from "react-router-do
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
 import { authService } from "@/services/auth";
+import { sessionService } from "@/services/sessionService";
 import { Button } from "@/components/ui/button";
 import {
   Mail,
@@ -13,12 +14,15 @@ import {
   ArrowRight,
   Compass,
   LogOut,
+  Smartphone,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { getApiErrorMessage } from "@/services/api";
 
 const COOLDOWN_SECONDS = 60;
+const POLLING_INTERVAL_MS = 3000;
 
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
@@ -38,7 +42,10 @@ export default function VerifyEmailPage() {
 
   const [verifying, setVerifying] = useState(false);
   const [verificationSuccess, setVerificationSuccess] = useState(false);
+  const [isTokenExpired, setIsTokenExpired] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [networkNotice, setNetworkNotice] = useState<string | null>(null);
+  const [verifiedTargetUrl, setVerifiedTargetUrl] = useState<string>("/onboarding");
 
   const initialDeliveryFailed = (location.state as { emailSent?: boolean } | null)?.emailSent === false;
   const [deliveryWarning, setDeliveryWarning] = useState<string | null>(
@@ -51,23 +58,28 @@ export default function VerifyEmailPage() {
   const [cooldown, setCooldown] = useState(0);
 
   const cooldownTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const consecutiveErrorsRef = useRef<number>(0);
+  const isRedirectingRef = useRef<boolean>(false);
+  const attemptedTokenRef = useRef<string | null>(null);
 
   // If already verified and logged in, redirect to onboarding or dashboard
   useEffect(() => {
-    if (isEmailVerified) {
+    if (isEmailVerified && !verifying) {
       if (user?.onboarding_completed) {
         navigate("/dashboard", { replace: true });
       } else {
         navigate("/onboarding", { replace: true });
       }
     }
-  }, [isEmailVerified, user, navigate]);
+  }, [isEmailVerified, user, verifying, navigate]);
 
-  // Handle Token verification from URL query param
+  // Handle Token verification from URL query param (e.g. Device 2 click)
   const handleVerifyToken = useCallback(
     async (token: string) => {
       setVerifying(true);
       setErrorMessage(null);
+      setIsTokenExpired(false);
 
       try {
         const response = await authService.verifyEmail({ token });
@@ -76,23 +88,43 @@ export default function VerifyEmailPage() {
 
         // If backend returned access token, store it in session
         if (response.access_token) {
-          await setAuthSession(response.access_token);
+          const freshUser = await setAuthSession(response.access_token);
+          const target = freshUser?.onboarding_completed ? "/dashboard" : "/onboarding";
+          setVerifiedTargetUrl(target);
+          setTimeout(() => {
+            if (!isRedirectingRef.current) {
+              isRedirectingRef.current = true;
+              navigate(target, { replace: true });
+            }
+          }, 1500);
         } else {
-          await refreshUser();
+          const freshUser = await refreshUser();
+          const target = freshUser?.onboarding_completed ? "/dashboard" : "/onboarding";
+          setVerifiedTargetUrl(target);
+          setTimeout(() => {
+            if (!isRedirectingRef.current) {
+              isRedirectingRef.current = true;
+              navigate(target, { replace: true });
+            }
+          }, 1500);
         }
       } catch (error) {
         const message = getApiErrorMessage(error);
         setErrorMessage(message);
+        if (message.toLowerCase().includes("expired")) {
+          setIsTokenExpired(true);
+        }
         toast.error(message);
       } finally {
         setVerifying(false);
       }
     },
-    [setAuthSession, refreshUser],
+    [setAuthSession, refreshUser, navigate],
   );
 
   useEffect(() => {
-    if (tokenFromUrl && !verificationSuccess && !verifying) {
+    if (tokenFromUrl && !verificationSuccess && !verifying && attemptedTokenRef.current !== tokenFromUrl) {
+      attemptedTokenRef.current = tokenFromUrl;
       handleVerifyToken(tokenFromUrl);
     }
   }, [tokenFromUrl, handleVerifyToken, verificationSuccess, verifying]);
@@ -112,8 +144,94 @@ export default function VerifyEmailPage() {
     };
   }, [cooldown]);
 
+  // Target email for status check and resending
+  const targetEmail = (pendingEmail || user?.email || "").trim().toLowerCase();
+  const displayEmail = targetEmail || "your registered email address";
+
+  // Automatic Cross-Device Polling Effect
+  useEffect(() => {
+    // Do not poll if already verified, currently verifying a token, or redirecting
+    if (verificationSuccess || verifying || isEmailVerified || isRedirectingRef.current) {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      return;
+    }
+
+    // Require an identifiable anchor: either an authenticated session token or target email
+    const hasSession = !!sessionService.getToken();
+    if (!hasSession && !targetEmail) {
+      return;
+    }
+
+    let isSubscribed = true;
+
+    const checkVerificationStatus = async () => {
+      try {
+        const res = await authService.getVerificationStatus(
+          targetEmail ? { email: targetEmail } : undefined,
+        );
+
+        if (!isSubscribed) return;
+
+        // Reset consecutive error counter on successful communication
+        consecutiveErrorsRef.current = 0;
+        setNetworkNotice(null);
+
+        if (res.is_email_verified) {
+          // Detected verification on another device!
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+
+          setVerificationSuccess(true);
+          toast.success("Email verified on another device! Continuing...");
+
+          // If this client holds a session token, sync user state
+          if (sessionService.getToken()) {
+            const freshUser = await refreshUser();
+            const target = (freshUser?.onboarding_completed || res.onboarding_completed)
+              ? "/dashboard"
+              : "/onboarding";
+            setVerifiedTargetUrl(target);
+
+            setTimeout(() => {
+              if (isSubscribed && !isRedirectingRef.current) {
+                isRedirectingRef.current = true;
+                navigate(target, { replace: true });
+              }
+            }, 1500);
+          } else {
+            // Unauthenticated client detected verification
+            setVerifiedTargetUrl("/login");
+          }
+        }
+      } catch (err) {
+        if (!isSubscribed) return;
+
+        // Tolerant retry on recoverable network or temporary rate limit
+        consecutiveErrorsRef.current += 1;
+        if (consecutiveErrorsRef.current >= 4) {
+          setNetworkNotice("Checking verification status is taking longer than expected. Retrying automatically...");
+        }
+      }
+    };
+
+    // Run initial check after short initial delay, then interval
+    pollTimerRef.current = setInterval(checkVerificationStatus, POLLING_INTERVAL_MS);
+
+    return () => {
+      isSubscribed = false;
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, [verificationSuccess, verifying, isEmailVerified, targetEmail, refreshUser, navigate]);
+
   const handleResend = async () => {
-    const targetEmail = (pendingEmail || user?.email || "").trim().toLowerCase();
     if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
       setErrorMessage("No valid registered email address found. Please try logging in or registering again.");
       return;
@@ -121,6 +239,7 @@ export default function VerifyEmailPage() {
 
     setResending(true);
     setErrorMessage(null);
+    setIsTokenExpired(false);
 
     try {
       const response = await authService.resendVerification({ email: targetEmail });
@@ -157,10 +276,13 @@ export default function VerifyEmailPage() {
   };
 
   const handleContinue = () => {
-    navigate("/onboarding", { replace: true });
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    isRedirectingRef.current = true;
+    navigate(verifiedTargetUrl, { replace: true });
   };
-
-  const displayEmail = pendingEmail || user?.email || "your registered email address";
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12 sm:px-6 lg:px-8">
@@ -185,7 +307,7 @@ export default function VerifyEmailPage() {
             </Link>
           </div>
 
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             {/* 1. Verifying token in progress */}
             {verifying && (
               <motion.div
@@ -220,7 +342,9 @@ export default function VerifyEmailPage() {
                 <div className="space-y-1.5">
                   <h1 className="font-display text-2xl font-bold text-foreground">Email Verified!</h1>
                   <p className="text-sm text-muted-foreground">
-                    Your account is activated. Let's personalize your LakshyaAI career workspace.
+                    {sessionService.getToken()
+                      ? "Your account is activated. Redirecting you to your career workspace..."
+                      : "Your account is activated. Please sign in to access your LakshyaAI dashboard."}
                   </p>
                 </div>
 
@@ -228,14 +352,56 @@ export default function VerifyEmailPage() {
                   onClick={handleContinue}
                   className="w-full bg-gradient-to-r from-primary to-accent font-semibold text-white shadow-lg shadow-primary/25 hover:opacity-95"
                 >
-                  Continue to Career Onboarding
+                  {sessionService.getToken() ? "Continue to Career Onboarding" : "Sign In to Continue"}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </motion.div>
             )}
 
-            {/* 3. Pending Verification Instructions / Token Error */}
-            {!verificationSuccess && !verifying && (
+            {/* 3. Expired Link State */}
+            {isTokenExpired && !verificationSuccess && !verifying && (
+              <motion.div
+                key="expired"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="space-y-5 py-4"
+              >
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-400">
+                  <AlertTriangle className="h-9 w-9" />
+                </div>
+                <div className="space-y-1.5">
+                  <h1 className="font-display text-2xl font-bold text-foreground">Verification Link Expired</h1>
+                  <p className="text-sm text-muted-foreground">
+                    Security links expire after 24 hours. Request a fresh verification link below.
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={resending || cooldown > 0}
+                  className="w-full bg-gradient-to-r from-primary to-accent font-semibold text-white shadow-lg shadow-primary/25 hover:opacity-95"
+                >
+                  {resending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending New Link...
+                    </>
+                  ) : cooldown > 0 ? (
+                    `Resend available in ${cooldown}s`
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Request New Verification Link
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+            )}
+
+            {/* 4. Pending Verification Instructions / Polling */}
+            {!verificationSuccess && !verifying && !isTokenExpired && (
               <motion.div
                 key="pending"
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -256,9 +422,30 @@ export default function VerifyEmailPage() {
                     {displayEmail}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Please click the link in the email to verify your address and continue your career onboarding.
+                    Open the link on this device, your phone, or any other browser. This screen updates automatically upon verification.
                   </p>
                 </div>
+
+                {/* Cross-device auto-detection pulse banner */}
+                <div className="flex items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-2.5 text-xs font-medium text-primary shadow-sm">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+                  </span>
+                  <Smartphone className="h-3.5 w-3.5" />
+                  <span>Listening for verification across devices...</span>
+                </div>
+
+                {networkNotice && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 p-2.5 text-left text-xs font-medium text-blue-400"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 shrink-0 mt-0.5 animate-spin" />
+                    <span>{networkNotice}</span>
+                  </motion.div>
+                )}
 
                 {deliveryWarning && (
                   <motion.div
@@ -313,6 +500,10 @@ export default function VerifyEmailPage() {
                     <button
                       type="button"
                       onClick={() => {
+                        if (pollTimerRef.current) {
+                          clearInterval(pollTimerRef.current);
+                          pollTimerRef.current = null;
+                        }
                         logout();
                         navigate("/register");
                       }}
@@ -327,6 +518,10 @@ export default function VerifyEmailPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      if (pollTimerRef.current) {
+                        clearInterval(pollTimerRef.current);
+                        pollTimerRef.current = null;
+                      }
                       logout();
                       navigate("/login");
                     }}

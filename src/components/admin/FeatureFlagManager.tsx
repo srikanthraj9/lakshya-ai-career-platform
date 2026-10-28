@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Flag, Plus, Check, X, Shield, Sparkles } from "lucide-react";
+import { Flag, Plus, Check, X, Shield, Sparkles, Trash2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -15,11 +15,21 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { FeatureFlag } from "@/types";
 
+const SYSTEM_FLAG_KEYS = new Set([
+  "voice_interview",
+  "live_jobs",
+  "career_intelligence",
+  "application_tracker",
+  "ai_copilot",
+  "resume_ai_optimize",
+]);
+
 interface FeatureFlagManagerProps {
   flags: FeatureFlag[];
   isLoading: boolean;
   onToggleFlag: (flagId: string, isEnabled: boolean) => Promise<void>;
   onCreateFlag: (payload: { key: string; name: string; description: string; is_enabled: boolean }) => Promise<void>;
+  onDeleteFlag?: (flagId: string) => Promise<void>;
 }
 
 export function FeatureFlagManager({
@@ -27,8 +37,11 @@ export function FeatureFlagManager({
   isLoading,
   onToggleFlag,
   onCreateFlag,
+  onDeleteFlag,
 }: FeatureFlagManagerProps) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [flagToDelete, setFlagToDelete] = useState<FeatureFlag | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -113,8 +126,17 @@ export function FeatureFlagManager({
               </div>
 
               <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-muted-foreground">Audience:</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {SYSTEM_FLAG_KEYS.has(flag.key) ? (
+                    <Badge variant="secondary" className="text-[9px] bg-primary/10 text-primary border-none">
+                      System Flag
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[9px] border-border/70 text-muted-foreground">
+                      Custom Flag
+                    </Badge>
+                  )}
+                  <span className="text-[10px] text-muted-foreground">Roles:</span>
                   <div className="flex gap-1">
                     {flag.target_roles?.map((role) => (
                       <Badge key={role} variant="outline" className="text-[9px] px-1.5 py-0">
@@ -124,21 +146,73 @@ export function FeatureFlagManager({
                   </div>
                 </div>
 
-                <Badge
-                  variant={flag.is_enabled ? "secondary" : "outline"}
-                  className={
-                    flag.is_enabled
-                      ? "bg-emerald-500/10 text-emerald-500 border-none text-[10px]"
-                      : "text-muted-foreground text-[10px]"
-                  }
-                >
-                  {flag.is_enabled ? "Enabled" : "Disabled"}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={flag.is_enabled ? "secondary" : "outline"}
+                    className={
+                      flag.is_enabled
+                        ? "bg-emerald-500/10 text-emerald-500 border-none text-[10px]"
+                        : "text-muted-foreground text-[10px]"
+                    }
+                  >
+                    {flag.is_enabled ? "Enabled" : "Disabled"}
+                  </Badge>
+
+                  {!SYSTEM_FLAG_KEYS.has(flag.key) && onDeleteFlag && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFlagToDelete(flag)}
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-rose-400"
+                      title="Delete custom feature flag"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           ))
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!flagToDelete} onOpenChange={(open) => !open && setFlagToDelete(null)}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-500">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Feature Flag
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Are you sure you want to permanently delete custom feature flag{" "}
+              <strong>{flagToDelete?.key}</strong>? This action will be recorded in the audit log.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0 mt-3">
+            <Button variant="outline" size="sm" onClick={() => setFlagToDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={isDeleting}
+              onClick={async () => {
+                if (!flagToDelete || !onDeleteFlag) return;
+                setIsDeleting(true);
+                try {
+                  await onDeleteFlag(flagToDelete.id);
+                  setFlagToDelete(null);
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+            >
+              {isDeleting ? "Deleting..." : "Confirm Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Feature Flag Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

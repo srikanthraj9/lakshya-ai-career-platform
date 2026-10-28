@@ -10,7 +10,7 @@ services:
     env: python
     rootDir: lakshyaai-backend
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: python scripts/validate_environment.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     plan: free
     autoDeploy: true

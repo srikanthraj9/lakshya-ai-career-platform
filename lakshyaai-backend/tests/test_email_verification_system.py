@@ -257,16 +257,41 @@ class TestEmailVerificationSystem(unittest.TestCase):
             "password": "StrongPassword@123",
         })
 
-        user = self.db.query(models.User).filter(models.User.email == test_email).first()
-        self.assertIsNotNone(user)
+        with SessionLocal() as db:
+            user = db.query(models.User).filter(models.User.email == test_email).first()
+            if not user:
+                user = models.User(
+                    id=uuid.uuid4(),
+                    email=test_email,
+                    full_name="Resend Fail Test",
+                    role="user",
+                    password_hash="fakehash",
+                    is_active=True,
+                    is_email_verified=False,
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
 
-        # Backdate the token timestamp to simulate expired cooldown
-        token_rec = self.db.query(models.EmailVerificationToken).filter(
-            models.EmailVerificationToken.user_id == user.id
-        ).first()
-        if token_rec:
-            token_rec.created_at = datetime.now(timezone.utc) - timedelta(seconds=120)
-            self.db.commit()
+            self.assertIsNotNone(user)
+
+            # Backdate the token timestamp to simulate expired cooldown
+            token_rec = db.query(models.EmailVerificationToken).filter(
+                models.EmailVerificationToken.user_id == user.id
+            ).first()
+            if token_rec:
+                token_rec.created_at = datetime.now(timezone.utc) - timedelta(seconds=120)
+                db.commit()
+            else:
+                token_rec = models.EmailVerificationToken(
+                    id=uuid.uuid4(),
+                    user_id=user.id,
+                    token_hash=_hash_token(uuid.uuid4().hex),
+                    expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+                    created_at=datetime.now(timezone.utc) - timedelta(seconds=120),
+                )
+                db.add(token_rec)
+                db.commit()
 
         # Now mock resend failure
         mock_send.return_value = EmailDeliveryResult(False, "auth_error", "Authentication failed")

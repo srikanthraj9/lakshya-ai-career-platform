@@ -46,7 +46,7 @@ export function ResumeRecommendations({
                 High Impact
               </StatusBadge>
             </div>
-            <span className="text-xs font-semibold text-rose-400">+6 to +8 ATS Points</span>
+            <span className="text-xs font-semibold text-rose-400">Targeted Impact</span>
           </div>
 
           <div>

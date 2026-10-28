@@ -1,12 +1,21 @@
 import os
 import re
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
-load_dotenv(ENV_PATH)
+KNOWN_PRODUCTION_HOST = "aws-0-ap-northeast-2.pooler.supabase.com"
+
+current_env = os.getenv("ENVIRONMENT", "").strip().lower()
+staging_env_path = Path(__file__).resolve().parent.parent.parent / ".env.staging"
+prod_env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+
+if current_env == "staging" and staging_env_path.exists():
+    load_dotenv(staging_env_path, override=True)
+elif prod_env_path.exists():
+    load_dotenv(prod_env_path)
 load_dotenv()
 
 
@@ -19,11 +28,34 @@ def _clean_database_url(url: str | None) -> str | None:
     return cleaned
 
 
-RAW_DB_URL = os.getenv("DATABASE_URL")
+RAW_DB_URL = os.getenv("STAGING_DATABASE_URL") if current_env == "staging" and os.getenv("STAGING_DATABASE_URL") else os.getenv("DATABASE_URL")
 DATABASE_URL = _clean_database_url(RAW_DB_URL)
 
-# Fallback to local SQLite if unconfigured or default placeholder password present
+# ---------------------------------------------------------------------------
+# FAIL-CLOSED TEST ISOLATION & LIVE DATABASE PROTECTION GUARD
+# ---------------------------------------------------------------------------
+is_testing_context = (
+    os.getenv("TESTING", "").strip().lower() == "true"
+    or os.getenv("PYTEST_CURRENT_TEST") is not None
+    or any("pytest" in str(arg).lower() or "unittest" in str(arg).lower() for arg in sys.argv)
+)
+
+if current_env == "staging":
+    # Refuse to connect to production database when ENVIRONMENT is staging
+    if DATABASE_URL and (KNOWN_PRODUCTION_HOST in DATABASE_URL.lower() or ("pooler.supabase.com" in DATABASE_URL.lower() and "staging" not in DATABASE_URL.lower() and os.getenv("CONFIRM_STAGING_MIGRATION", "").lower() != "true")):
+        raise RuntimeError("[SECURITY GUARD] Refusing to connect to production database while ENVIRONMENT=staging. Execution aborted.")
+
+if is_testing_context:
+    # Fail-closed: Never allow automated tests to bind to a live Supabase database
+    if DATABASE_URL and ("supabase.com" in DATABASE_URL.lower() or "pooler.supabase" in DATABASE_URL.lower()):
+        test_db_url = os.getenv("TEST_DATABASE_URL", "sqlite:///./test_isolated.db")
+        print(f"[SECURITY GUARD] Prevented live Supabase access from test runner. Using isolated test DB: {test_db_url}")
+        DATABASE_URL = test_db_url
+
+# Fallback to local SQLite if unconfigured or default placeholder password present (dev/testing only)
 if not DATABASE_URL or "your-db-password" in DATABASE_URL:
+    if current_env == "staging":
+        raise RuntimeError("[SECURITY GUARD] Staging environment requires a valid DATABASE_URL pointing to an isolated staging PostgreSQL database. Fallback rejected.")
     DATABASE_URL = "sqlite:///./lakshyaai.db"
 
 connect_args = {}

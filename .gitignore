@@ -39,6 +39,7 @@ env/
 *.sqlite3
 storage/
 uploads/
+backups/
 
 # Vite temporary files
 vite.config.ts.timestamp-*

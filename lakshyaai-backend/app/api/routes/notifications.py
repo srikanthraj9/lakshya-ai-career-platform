@@ -172,3 +172,26 @@ def clear_all_notifications(
     ).delete(synchronize_session=False)
     db.commit()
     return {"message": "All notifications cleared successfully"}
+
+
+@router.get("/announcements", response_model=List[schemas.PlatformAnnouncementResponse])
+def get_candidate_announcements(
+    db: Session = Depends(get_db),
+):
+    """Retrieve active platform announcements for candidate user experience."""
+    from datetime import datetime, timezone
+    from sqlalchemy import or_
+    now = datetime.now(timezone.utc)
+    return (
+        db.query(models.PlatformAnnouncement)
+        .filter(
+            models.PlatformAnnouncement.is_active == True,
+            or_(
+                models.PlatformAnnouncement.expires_at == None,
+                models.PlatformAnnouncement.expires_at > now,
+            ),
+        )
+        .order_by(models.PlatformAnnouncement.created_at.desc())
+        .all()
+    )
+

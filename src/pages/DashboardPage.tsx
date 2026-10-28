@@ -1,4 +1,6 @@
-import { Award, Brain, TrendingUp, Target } from "lucide-react";
+import { Award, Brain, TrendingUp, Target, Megaphone } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/services/api";
 import { PageTransition } from "@/components/PageTransition";
 import { ErrorFallback } from "@/components/ErrorFallback";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -30,6 +32,19 @@ export default function DashboardPage() {
     refetchAll,
   } = useDashboardData();
 
+  const { data: activeAnnouncements = [] } = useQuery({
+    queryKey: ["candidate", "active-announcements"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/notifications/announcements");
+        return Array.isArray(res.data) ? res.data : [];
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 60000,
+  });
+
   const userName =
     user?.full_name?.split(" ")[0] || (user?.email ? user.email.split("@")[0] : "Candidate");
   const rawAts = activeResume?.ats_score ?? (summary?.ats_score ?? 0);
@@ -53,6 +68,30 @@ export default function DashboardPage() {
   return (
     <PageTransition>
       <div className="space-y-8 max-w-7xl mx-auto">
+        {/* Active Platform Broadcast Announcements */}
+        {activeAnnouncements.length > 0 && (
+          <div className="flex flex-col gap-3">
+            {activeAnnouncements.map((ann: any) => (
+              <div
+                key={ann.id}
+                className={`rounded-2xl p-4 border flex items-start gap-3 backdrop-blur-xl ${
+                  ann.type === "maintenance"
+                    ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+                    : ann.type === "warning"
+                    ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                    : "bg-primary/10 border-primary/20 text-primary"
+                }`}
+              >
+                <Megaphone className="h-5 w-5 shrink-0 mt-0.5" />
+                <div className="flex flex-col">
+                  <span className="font-bold text-sm text-foreground">{ann.title}</span>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{ann.message}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* 1. Hero & Career Readiness Master Score */}
         <DashboardHero
           userName={userName}

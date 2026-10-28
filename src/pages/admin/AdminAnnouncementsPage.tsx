@@ -13,8 +13,34 @@ export function AdminAnnouncementsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (payload: { title: string; message: string; type: string; target_audience: string }) =>
-      adminService.createAnnouncement(payload),
+    mutationFn: (payload: {
+      title: string;
+      message: string;
+      type: string;
+      target_audience: string;
+      is_active?: boolean;
+      expires_at?: string | null;
+    }) => adminService.createAnnouncement(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.announcements });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: {
+        title?: string;
+        message?: string;
+        type?: string;
+        target_audience?: string;
+        is_active?: boolean;
+        expires_at?: string | null;
+      };
+    }) => adminService.updateAnnouncement(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.announcements });
     },
@@ -34,6 +60,9 @@ export function AdminAnnouncementsPage() {
         isLoading={isLoading}
         onCreateAnnouncement={async (payload) => {
           await createMutation.mutateAsync(payload);
+        }}
+        onUpdateAnnouncement={async (id, payload) => {
+          await updateMutation.mutateAsync({ id, payload });
         }}
         onDeleteAnnouncement={async (id) => {
           await deleteMutation.mutateAsync(id);

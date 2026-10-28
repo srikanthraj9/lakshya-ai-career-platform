@@ -208,6 +208,9 @@ export function ResumeOptimize({ resume, initialJobDescription = "" }: ResumeOpt
             result={result}
             onRegenerate={handleGenerate}
             isRegenerating={mutation.isPending}
+            parentResumeId={resume?.id}
+            targetRoleTitle={targetRole}
+            jobDescription={jobDescription}
           />
           <ResumeDiffWorkspace originalText={originalText} result={result} />
         </div>

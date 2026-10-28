@@ -1,5 +1,13 @@
 import api from "./api";
-import type { Resume, ResumeDetail, ResumeFeedback, ResumeListItem } from "@/types";
+import type {
+  Resume,
+  ResumeAssessment,
+  ResumeAssessmentListItem,
+  ResumeDetail,
+  ResumeFeedback,
+  ResumeListItem,
+  ResumeSaveVersionResponse,
+} from "@/types";
 
 export const resumeService = {
   async upload(file: File, jobDescription?: string): Promise<Resume> {
@@ -62,5 +70,32 @@ export const resumeService = {
     const res = await api.get("/resume/rewrites");
     return res.data;
   },
+
+  async assessResume(
+    id: string,
+    payload: { target_role_id?: string; target_role_title?: string; job_description?: string } = {}
+  ): Promise<ResumeAssessment> {
+    const res = await api.post(`/resumes/${id}/assess`, payload);
+    return res.data;
+  },
+
+  async getResumeAssessments(id: string): Promise<ResumeAssessmentListItem[]> {
+    const res = await api.get(`/resumes/${id}/assessments`);
+    return res.data;
+  },
+
+  async getResumeAssessmentDetail(id: string, assessmentId: string): Promise<ResumeAssessment> {
+    const res = await api.get(`/resumes/${id}/assessments/${assessmentId}`);
+    return res.data;
+  },
+
+  async saveRewriteVersion(
+    documentId: string,
+    payload: { version_label?: string; target_role_title?: string; job_description?: string } = {}
+  ): Promise<ResumeSaveVersionResponse> {
+    const res = await api.post(`/resume/rewrite/${documentId}/save-version`, payload);
+    return res.data;
+  },
 };
+
 

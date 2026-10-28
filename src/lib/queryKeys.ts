@@ -89,5 +89,7 @@ export const queryKeys = {
     featureFlags: ["admin", "feature-flags"] as const,
     announcements: ["admin", "announcements"] as const,
     audit: (filters?: Record<string, any>) => ["admin", "audit", filters || {}] as const,
+    alerts: (filters?: Record<string, any>) => ["admin", "alerts", filters || {}] as const,
+    alertsSummary: ["admin", "alerts", "summary"] as const,
   },
 } as const;

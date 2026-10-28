@@ -32,6 +32,14 @@ export interface RegisterResponse {
   message?: string;
   email_sent?: boolean;
   delivery_status?: string;
+  access_token?: string;
+  token_type?: string;
+}
+
+export interface VerificationStatusResponse {
+  is_email_verified: boolean;
+  email?: string | null;
+  onboarding_completed?: boolean | null;
 }
 
 export interface VerifyEmailPayload {
@@ -101,12 +109,74 @@ export interface ResumeScoreBreakdown {
   formatting: number;
   action_verbs: number;
   section_coverage: number;
+  scoring_mode?: "base_quality" | "job_match";
+  base_quality_score?: number;
+  job_match_score?: number;
 }
 
 export interface ResumeMissingSkill {
   skill: string;
   category: string;
   importance: number;
+}
+
+export interface ResumeAssessmentDimension {
+  dimension_key: string;
+  raw_score: number;
+  weighted_score: number;
+  weight_factor: number;
+  evaluation_status: string;
+  diagnostic_notes?: string | null;
+}
+
+export interface ResumeSkillEvidence {
+  skill_name: string;
+  excerpt_text: string;
+  section_name: string;
+  confidence: number;
+  is_inferred: boolean;
+}
+
+export interface ResumeAssessment {
+  id: string;
+  resume_id: string;
+  scoring_mode: "base_quality" | "job_match";
+  overall_score: number;
+  match_verdict: string;
+  target_role_id?: string | null;
+  target_role_title?: string | null;
+  algorithm_version: string;
+  dimensions: ResumeAssessmentDimension[];
+  matched_skills: string[];
+  missing_skills: ResumeMissingSkill[];
+  skill_evidence: ResumeSkillEvidence[];
+  recommendations: string[];
+  created_at: string;
+}
+
+export interface ResumeAssessmentListItem {
+  id: string;
+  resume_id: string;
+  scoring_mode: "base_quality" | "job_match";
+  overall_score: number;
+  match_verdict?: string | null;
+  target_role_title?: string | null;
+  algorithm_version: string;
+  created_at: string;
+}
+
+export interface ResumeSaveVersionResponse {
+  new_resume_id: string;
+  parent_resume_id: string;
+  version_number: number;
+  version_label: string;
+  file_name: string;
+  base_quality_score: number;
+  job_match_score?: number | null;
+  score_delta?: number | null;
+  delta_explanation?: string | null;
+  validation_warnings: string[];
+  created_at: string;
 }
 
 export interface Resume {
@@ -116,6 +186,10 @@ export interface Resume {
   extracted_text?: string | null;
   parsed_text?: string | null;
   ats_score: number;
+  base_quality_score?: number | null;
+  version_number?: number;
+  version_label?: string | null;
+  parent_resume_id?: string | null;
   created_at: string;
   skills: ResumeSkill[];
   ats_breakdown?: ResumeScoreBreakdown | null;
@@ -127,6 +201,10 @@ export interface ResumeListItem {
   file_name: string;
   created_at: string;
   ats_score?: number | null;
+  base_quality_score?: number | null;
+  version_number?: number;
+  version_label?: string | null;
+  parent_resume_id?: string | null;
 }
 
 export interface ResumeDetailFeedback {
@@ -144,6 +222,10 @@ export interface ResumeDetail {
   extracted_text?: string | null;
   parsed_text?: string | null;
   ats_score: number;
+  base_quality_score?: number | null;
+  version_number?: number;
+  version_label?: string | null;
+  parent_resume_id?: string | null;
   skills: string[];
   breakdown: ResumeScoreBreakdown;
   feedback: ResumeDetailFeedback;
@@ -157,6 +239,7 @@ export interface ResumeFeedback {
   formatting_issues: string[];
   llm_feedback: string[];
 }
+
 
 export interface AnalyticsSummary {
   ats_score: number;
@@ -572,6 +655,8 @@ export interface AdminUserDetailResponse {
 
 export interface AdminDashboardStats {
   total_users: number;
+  total_candidates?: number;
+  verified_users?: number;
   active_users_today: number;
   new_users_today: number;
   suspended_users: number;
@@ -605,18 +690,72 @@ export interface PlatformAnalyticsStats {
   top_companies: Array<{ company: string; applications: number }>;
 }
 
+export interface AIModelBreakdownItem {
+  model_name: string;
+  provider: string;
+  requests: number;
+  request_count?: number;
+  total_tokens: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  estimated_cost_usd: number;
+  is_priced: boolean;
+  pricing_available?: boolean;
+}
+
+export interface AIPricingAssumptions {
+  currency?: string;
+  calculation_basis?: string;
+  rates?: Record<string, { input_per_million: number; output_per_million: number; provider: string }>;
+  disclaimer?: string;
+}
+
 export interface AIUsageStats {
   total_requests: number;
   successful_requests: number;
   failed_requests: number;
   success_rate: number;
-  average_response_time_ms: number;
+  average_response_time_ms?: number | null;
+  p50_latency_ms?: number | null;
+  p95_latency_ms?: number | null;
+  p99_latency_ms?: number | null;
+  telemetry_source?: string;
+  sample_size?: number;
   breakdown_by_feature: Record<string, number>;
+  breakdown_by_provider?: Record<string, number>;
+  recent_errors?: Array<{
+    request_id: string;
+    feature_type: string;
+    provider: string;
+    model_name: string;
+    error_category: string;
+    timestamp?: string;
+  }>;
+  total_prompt_tokens?: number;
+  total_completion_tokens?: number;
+  total_tokens?: number;
+  token_metered_requests?: number;
+  unmetered_requests?: number;
+  estimated_cost_usd?: number;
+  breakdown_by_model?: Record<string, AIModelBreakdownItem> | AIModelBreakdownItem[];
+  pricing_assumptions?: AIPricingAssumptions | string[];
+  time_range?: string | null;
+}
+
+export interface SystemServiceDetail {
+  status: "healthy" | "degraded" | "unhealthy";
+  latency_ms?: number;
+  description?: string;
+  last_checked?: string;
+  error?: string | null;
+  active_providers?: string[];
 }
 
 export interface SystemHealthResponse {
   status: "healthy" | "degraded" | "unhealthy";
   services: Record<string, string>;
+  service_details?: Record<string, SystemServiceDetail>;
+  open_alerts_count?: number;
   timestamp: string;
 }
 
@@ -646,13 +785,29 @@ export interface PlatformAnnouncement {
 export interface AdminAuditLog {
   id: string;
   admin_user_id?: string | null;
+  admin_email?: string | null;
   action_type: string;
   target_user_id?: string | null;
+  target_email?: string | null;
   resource_type?: string | null;
   resource_id?: string | null;
   action_metadata: Record<string, unknown>;
+  before_data?: Record<string, unknown> | null;
+  after_data?: Record<string, unknown> | null;
+  diff?: Record<string, unknown> | null;
+  reason?: string | null;
+  severity?: string | null;
   ip_address?: string | null;
+  user_agent?: string | null;
   created_at: string;
+}
+
+export interface AdminAuditLogListResponse {
+  items: AdminAuditLog[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 export interface AdminUserResumeItem {
@@ -727,6 +882,75 @@ export interface AdminSimulationSessionResponse {
   target_user_email?: string | null;
   target_user_name?: string | null;
 }
+
+export interface AdminUserBulkStatusItem {
+  user_id: string;
+  email: string;
+  status: string;
+  success: boolean;
+  error?: string | null;
+}
+
+export interface AdminUserBulkStatusResponse {
+  action: "suspend" | "activate";
+  total_requested: number;
+  successful_count: number;
+  failed_count: number;
+  results: AdminUserBulkStatusItem[];
+}
+
+export type AlertSeverity = "critical" | "warning" | "info";
+export type AlertStatus = "open" | "acknowledged" | "resolved";
+
+export interface OperationalAlertItem {
+  id: string;
+  alert_type: string;
+  severity: AlertSeverity;
+  title: string;
+  description: string;
+  source_service: string;
+  status: AlertStatus;
+  created_at: string;
+  updated_at: string;
+  related_resource_type?: string | null;
+  related_resource_id?: string | null;
+  acknowledged_by_admin_email?: string | null;
+  acknowledged_at?: string | null;
+  resolved_by_admin_email?: string | null;
+  resolved_at?: string | null;
+  resolution_notes?: string | null;
+  metadata?: Record<string, any>;
+}
+
+export interface OperationalAlertListResponse {
+  items: OperationalAlertItem[];
+  total: number;
+  open_count: number;
+  acknowledged_count: number;
+  resolved_count: number;
+  critical_count: number;
+  warning_count: number;
+  info_count: number;
+  last_refreshed_at: string;
+}
+
+export interface OperationalAlertSummaryResponse {
+  open_count: number;
+  acknowledged_count: number;
+  resolved_count: number;
+  critical_count: number;
+  warning_count: number;
+  info_count: number;
+  unresolved_alerts: OperationalAlertItem[];
+  last_refreshed_at: string;
+}
+
+export interface OperationalAlertTransitionRequest {
+  status: "acknowledged" | "resolved";
+  resolution_notes?: string | null;
+}
+
+
 
 
 
