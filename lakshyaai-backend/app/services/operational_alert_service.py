@@ -250,10 +250,14 @@ class OperationalAlertService:
         # ----------------------------------------------------------------------
         try:
             audit_window = now - timedelta(hours=24)
+            # Query genuine critical operational & governance alerts requiring operational attention.
+            # Routine user self-service events (e.g., verified self-service privacy deletion) are compliance events,
+            # not system failures or operational degradation incidents.
             critical_audits = (
                 db.query(models.AdminAuditLog)
                 .filter(
                     models.AdminAuditLog.severity == "critical",
+                    models.AdminAuditLog.action_type != "SELF_SERVICE_ACCOUNT_DELETION",
                     models.AdminAuditLog.created_at >= audit_window,
                 )
                 .order_by(models.AdminAuditLog.created_at.desc())

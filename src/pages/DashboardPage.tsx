@@ -1,6 +1,8 @@
-import { Award, Brain, TrendingUp, Target, Megaphone } from "lucide-react";
+import { Award, Brain, TrendingUp, Target, Megaphone, ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/services/api";
+import { Button } from "@/components/ui/button";
 import { PageTransition } from "@/components/PageTransition";
 import { ErrorFallback } from "@/components/ErrorFallback";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -98,6 +100,31 @@ export default function DashboardPage() {
           targetRoleTitle={targetRole.title}
           breakdown={breakdown}
         />
+
+        {/* Intentional Empty State for New Candidates with No Target Role Selected */}
+        {targetRole.title === "No Target Role Selected" && (
+          <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 backdrop-blur-xl shadow-sm">
+            <div className="flex items-start gap-3.5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+                <Target className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-foreground">
+                  Target Career Role Not Selected
+                </h4>
+                <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
+                  Select your desired tech role to unlock role-specific ATS diagnostics, personalized skill gap breakdowns, and tailored roadmap recommendations.
+                </p>
+              </div>
+            </div>
+            <Link to="/role-alignment" className="shrink-0 self-end sm:self-center">
+              <Button size="sm" variant="gradient" className="gap-1.5 text-xs shadow-md shadow-primary/20">
+                <span>Choose Target Role</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </Link>
+          </div>
+        )}
 
         {/* 2. AI Next Best Actions & Quick Launchpad */}
         <div className="grid gap-6 lg:grid-cols-3">

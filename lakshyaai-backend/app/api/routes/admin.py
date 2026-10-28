@@ -46,17 +46,6 @@ def get_admin_dashboard(
     return PlatformAnalyticsService.get_dashboard_summary(db)
 
 
-@router.get("/system/health")
-def get_admin_system_health(
-    admin: models.User = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Returns live system diagnostics for infrastructure, database latency, auth, AI, and storage.
-    """
-    return HealthService.get_system_diagnostics(db)
-
-
 # ==============================================================================
 # USER MANAGEMENT
 # ==============================================================================

@@ -1,3 +1,4 @@
+import os
 import time
 import logging
 import tempfile
@@ -123,10 +124,14 @@ class HealthService:
 
         # 4. AI Inference Engine
         active_providers = []
-        if getattr(settings, "GEMINI_API_KEY", None):
+        if getattr(settings, "GEMINI_API_KEY", None) or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
             active_providers.append("Google Gemini")
-        if getattr(settings, "OPENAI_API_KEY", None):
+        if getattr(settings, "OPENAI_API_KEY", None) or os.getenv("OPENAI_API_KEY"):
             active_providers.append("OpenAI GPT")
+        if os.getenv("GROQ_API_KEY"):
+            active_providers.append("Groq")
+        if getattr(settings, "AI_API_KEY", None) or os.getenv("AI_API_KEY"):
+            active_providers.append("Platform AI Gateway")
 
         if active_providers:
             service_details["ai_service"] = {
@@ -179,10 +184,19 @@ class HealthService:
         else:
             overall_status = "healthy"
 
+        # Query open operational alerts safely
+        open_alerts_count = 0
+        try:
+            from app.services.operational_alert_service import OperationalAlertService
+            summary = OperationalAlertService.get_alerts_summary(db)
+            open_alerts_count = summary.open_count
+        except Exception:
+            open_alerts_count = 0
+
         return {
             "status": overall_status,
             "services": services,
             "service_details": service_details,
-            "open_alerts_count": 0,
+            "open_alerts_count": open_alerts_count,
             "timestamp": now_utc,
         }

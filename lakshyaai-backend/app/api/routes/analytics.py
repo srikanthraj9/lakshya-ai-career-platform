@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 
 from app.db.database import get_db
@@ -33,15 +34,15 @@ def get_ats_trend(
     if not trends:
 
         resumes = (
-            db.query(models.Resume)
+            db.query(models.Resume.created_at, models.Resume.ats_score)
             .filter(models.Resume.user_id == current_user.id)
-            .order_by(models.Resume.created_at)   # FIXED
+            .order_by(models.Resume.created_at)
             .all()
         )
 
         return [
             {
-                "date": r.created_at,   # FIXED
+                "date": r.created_at,
                 "score": r.ats_score
             }
             for r in resumes if r.ats_score
@@ -74,8 +75,8 @@ def get_skill_growth(
     if not skills:
 
         resume_skills = (
-            db.query(models.ResumeSkill)
-            .join(models.Resume)
+            db.query(models.ResumeSkill.skill_name)
+            .join(models.Resume, models.ResumeSkill.resume_id == models.Resume.id)
             .filter(models.Resume.user_id == current_user.id)
             .all()
         )
@@ -107,9 +108,10 @@ def get_performance_summary(
 ):
 
     total_resumes = (
-        db.query(models.Resume)
+        db.query(func.count(models.Resume.id))
         .filter(models.Resume.user_id == current_user.id)
-        .count()
+        .scalar()
+        or 0
     )
 
     avg_ats = (
@@ -119,7 +121,7 @@ def get_performance_summary(
         .all()
     )
 
-    avg_score = 0
+    avg_score = 0.0
 
     if avg_ats:
         avg_score = sum([x.ats_score for x in avg_ats]) / len(avg_ats)
@@ -137,43 +139,45 @@ def get_performance_summary(
         )
 
         if resume_scores:
-            avg_score = sum(
-                [x.ats_score for x in resume_scores if x.ats_score]
-            ) / len(resume_scores)
+            valid_scores = [x.ats_score for x in resume_scores if x.ats_score is not None]
+            if valid_scores:
+                avg_score = sum(valid_scores) / len(valid_scores)
 
     # =========================
     # COUNT UNIQUE SKILLS
     # =========================
 
     skill_count = (
-        db.query(models.ResumeSkill.skill_name)
-        .join(models.Resume)
+        db.query(func.count(func.distinct(models.ResumeSkill.skill_name)))
+        .join(models.Resume, models.ResumeSkill.resume_id == models.Resume.id)
         .filter(models.Resume.user_id == current_user.id)
-        .distinct()
-        .count()
+        .scalar()
+        or 0
     )
 
     # =========================
     # INTERVIEW SCORE
     # =========================
 
-    interview_score = 0
+    interview_score = 0.0
 
     try:
-
         interview_scores = (
-            db.query(models.InterviewSession.score)
-            .filter(models.InterviewSession.user_id == current_user.id)
+            db.query(models.InterviewSession.overall_score)
+            .filter(
+                models.InterviewSession.user_id == current_user.id,
+                models.InterviewSession.overall_score.isnot(None),
+            )
             .all()
         )
 
         if interview_scores:
-            interview_score = sum(
-                [x.score for x in interview_scores]
-            ) / len(interview_scores)
+            valid_interview_scores = [x.overall_score for x in interview_scores if x.overall_score is not None]
+            if valid_interview_scores:
+                interview_score = sum(valid_interview_scores) / len(valid_interview_scores)
 
-    except AttributeError:
-        interview_score = 0
+    except Exception:
+        interview_score = 0.0
 
     return {
         "ats_score": round(avg_score, 2),
@@ -194,9 +198,10 @@ def get_dashboard_overview(
 ):
 
     total_resumes = (
-        db.query(models.Resume)
+        db.query(func.count(models.Resume.id))
         .filter(models.Resume.user_id == current_user.id)
-        .count()
+        .scalar()
+        or 0
     )
 
     trends = (
@@ -215,7 +220,7 @@ def get_dashboard_overview(
     if not ats_scores:
 
         resumes = (
-            db.query(models.Resume)
+            db.query(models.Resume.ats_score)
             .filter(models.Resume.user_id == current_user.id)
             .all()
         )
@@ -244,8 +249,8 @@ def get_dashboard_overview(
     if not skill_list:
 
         resume_skills = (
-            db.query(models.ResumeSkill)
-            .join(models.Resume)
+            db.query(models.ResumeSkill.skill_name)
+            .join(models.Resume, models.ResumeSkill.resume_id == models.Resume.id)
             .filter(models.Resume.user_id == current_user.id)
             .all()
         )
@@ -260,7 +265,7 @@ def get_dashboard_overview(
             for k, v in skill_map.items()
         ]
 
-    avg_score = 0
+    avg_score = 0.0
 
     if ats_scores:
         avg_score = sum(ats_scores) / len(ats_scores)

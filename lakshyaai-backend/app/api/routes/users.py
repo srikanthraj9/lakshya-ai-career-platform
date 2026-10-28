@@ -809,7 +809,8 @@ def _perform_account_deletion(
                 "deleted_at": datetime.now(timezone.utc).isoformat(),
             },
             reason="User self-service account deletion requested and verified",
-            severity="critical",
+            # Standard privacy/GDPR compliance event; not a platform operational failure or incident
+            severity="info",
             confirmation_value="DELETE",
         )
         db.add(audit_entry)

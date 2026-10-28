@@ -16,7 +16,7 @@ export function useDashboardData() {
   const userId = user?.id;
   const { breakdown, targetRole, isLoading: isReadinessLoading } = useCareerReadiness();
 
-  const { data: profile, isLoading: isProfileLoading } = useQuery({
+  const { data: profile, isLoading: isProfileLoading, refetch: refetchProfile } = useQuery({
     queryKey: queryKeys.profile.current(userId || ""),
     queryFn: onboardingService.getProfile,
     enabled: Boolean(userId),
@@ -30,28 +30,28 @@ export function useDashboardData() {
     retry: 2,
   });
 
-  const { data: atsTrend, isLoading: isTrendLoading } = useQuery({
+  const { data: atsTrend, isLoading: isTrendLoading, refetch: refetchTrend } = useQuery({
     queryKey: queryKeys.analytics.atsTrend(userId || ""),
     queryFn: analyticsService.getATSTrend,
     enabled: Boolean(userId),
     retry: 2,
   });
 
-  const { data: skillGrowth, isLoading: isSkillsLoading } = useQuery({
+  const { data: skillGrowth, isLoading: isSkillsLoading, refetch: refetchSkills } = useQuery({
     queryKey: queryKeys.analytics.skillGrowth(userId || ""),
     queryFn: analyticsService.getSkillGrowth,
     enabled: Boolean(userId),
     retry: 2,
   });
 
-  const { data: careerProgress, isLoading: isProgressLoading } = useQuery({
+  const { data: careerProgress, isLoading: isProgressLoading, refetch: refetchProgress } = useQuery({
     queryKey: queryKeys.analytics.careerProgress(userId || ""),
     queryFn: analyticsService.getCareerProgress,
     enabled: Boolean(userId),
     retry: 2,
   });
 
-  const { data: resumes, isLoading: isResumesLoading } = useQuery({
+  const { data: resumes, isLoading: isResumesLoading, refetch: refetchResumes } = useQuery({
     queryKey: queryKeys.resumes.list(userId || ""),
     queryFn: resumeService.listResumes,
     enabled: Boolean(userId),
@@ -201,6 +201,11 @@ export function useDashboardData() {
     isError: isSummaryError,
     refetchAll: () => {
       refetchSummary();
+      refetchProfile();
+      refetchTrend();
+      refetchSkills();
+      refetchProgress();
+      refetchResumes();
     },
   };
 }

@@ -42,13 +42,20 @@ export function DashboardHero({
         </div>
 
         {!hasRole && (
-          <Link to="/onboarding">
-            <Button size="sm" variant="gradient" className="gap-1.5 text-xs">
-              <Target className="h-3.5 w-3.5" />
-              <span>Complete Onboarding</span>
-              <ArrowRight className="h-3.5 w-3.5 ml-0.5" />
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link to="/role-alignment">
+              <Button size="sm" variant="gradient" className="gap-1.5 text-xs shadow-md shadow-primary/20">
+                <Target className="h-3.5 w-3.5" />
+                <span>Select Target Role</span>
+                <ArrowRight className="h-3.5 w-3.5 ml-0.5" />
+              </Button>
+            </Link>
+            <Link to="/onboarding">
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs">
+                <span>Setup Profile</span>
+              </Button>
+            </Link>
+          </div>
         )}
       </div>
 
